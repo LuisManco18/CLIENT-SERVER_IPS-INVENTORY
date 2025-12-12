@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # 1. Base de Datos PostgreSQL
   db:
-    image: postgres:17
+    image: postgres:13
     container_name: itam_db
     restart: always
     environment:
