@@ -2,69 +2,74 @@ import wmi
 import socket
 import platform
 import uuid
+import pythoncom  # Necesario para threads con WMI
 
-def get_system_info():
+def get_system_data():
     """
-    Recolecta toda la información de hardware y SO usando WMI.
-    Retorna un diccionario listo para enviar a la API.
+    Recopila toda la información de la PC y retorna un diccionario
+    listo para enviar al servidor.
     """
     try:
+        # Inicializar WMI (necesario si se corre como servicio o thread)
+        pythoncom.CoInitialize()
         c = wmi.WMI()
         
-        # 1. Información del Sistema (Marca, Modelo, RAM)
-        system = c.Win32_ComputerSystem()[0]
+        # 1. Información General del Sistema
+        # Win32_ComputerSystem: Marca, Modelo, RAM Total, Usuario
+        sys_info = c.Win32_ComputerSystem()[0]
         
-        # 2. Información del SO (Nombre exacto)
+        # 2. Sistema Operativo
         os_info = c.Win32_OperatingSystem()[0]
         
-        # 3. Información del Procesador
-        cpu = c.Win32_Processor()[0]
+        # 3. Procesador
+        cpu_info = c.Win32_Processor()[0]
         
-        # 4. Información de BIOS (Para el Serial Number)
-        bios = c.Win32_BIOS()[0]
+        # 4. BIOS (Para el Serial Number real)
+        bios_info = c.Win32_BIOS()[0]
         
-        # 5. Información de Red (IP y MAC)
-        # Obtenemos el Hostname real
+        # --- PROCESAMIENTO DE DATOS ---
+        
+        # Hostname
         hostname = socket.gethostname()
-        ip_address = socket.gethostbyname(hostname)
         
-        # MAC Address (Formateada)
-        mac_address = hex(uuid.getnode()).replace('0x', '').upper()
-        mac_address = ':'.join(mac_address[i : i + 2] for i in range(0, 11, 2))
+        # IP Address (Truco para obtener la IP real que sale a internet/red)
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            ip_address = s.getsockname()[0]
+            s.close()
+        except:
+            ip_address = "127.0.0.1"
 
-        # --- CÁLCULOS Y LIMPIEZA ---
-        
-        # Convertir RAM de Bytes a GB (y redondear)
-        ram_bytes = int(system.TotalPhysicalMemory)
-        ram_gb = round(ram_bytes / (1024**3), 1) # Ej: 15.8 GB -> 16.0 GB
-        
-        # Usuario Logueado (Formato DOMINIO\Usuario)
-        usuario = system.UserName if system.UserName else "No activo"
+        # MAC Address
+        mac_num = uuid.getnode()
+        mac_address = ':'.join(('%012X' % mac_num)[i:i+2] for i in range(0, 12, 2))
 
-        # --- ARMANDO EL PAQUETE ---
+        # RAM en GB
+        ram_bytes = int(sys_info.TotalPhysicalMemory)
+        ram_gb = f"{round(ram_bytes / (1024**3), 1)} GB"
+
+        # Usuario (limpiar dominio si existe)
+        full_user = sys_info.UserName if sys_info.UserName else "No User"
+        
+        # Construimos el diccionario final
         data = {
-            "serial_number": bios.SerialNumber.strip(),
+            "serial_number": bios_info.SerialNumber.strip(),
             "hostname": hostname,
             "ip_address": ip_address,
             "mac_address": mac_address,
-            "usuario": usuario,
-            
-            # Nuevos datos de Hardware
-            "marca": f"{system.Manufacturer} {system.Model}".strip(),
-            "sistema_operativo": os_info.Caption.strip(), # Ej: Microsoft Windows 11 Pro
-            "procesador": cpu.Name.strip(),               # Ej: Intel(R) Core(TM) i7...
-            "memoria_ram": f"{ram_gb} GB"
+            "usuario": full_user,
+            "marca": sys_info.Manufacturer.strip(),
+            "modelo": sys_info.Model.strip(),
+            "sistema_operativo": os_info.Caption.strip(),
+            "procesador": cpu_info.Name.strip(),
+            "memoria_ram": ram_gb
         }
         
         return data
 
     except Exception as e:
-        print(f"Error recolectando datos WMI: {e}\033[0m")
+        print(f"Error recolectando datos WMI: {e}")
         return None
-
-# Bloque para probar este archivo solo
-if __name__ == "__main__":
-    print("Probando recolección de datos...")
-    info = get_system_info()
-    import json
-    print(json.dumps(info, indent=4))
+    finally:
+        pythoncom.CoUninitialize()

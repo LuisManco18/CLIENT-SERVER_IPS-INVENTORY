@@ -1,3 +1,4 @@
 requests
 wmi
 pywin32
+pypiwin32

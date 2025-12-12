@@ -1,38 +1,39 @@
 import time
-import requests
-import json
-from collector import get_system_info
+import sys
+from collector import get_system_data
+from network import send_report
+from config import settings
 
-# --- CONFIGURACIÓN ---
-# Apuntamos a tu servidor local (Backend)
-SERVER_URL = "http://127.0.0.1:8000/api/report"
-INTERVALO_SEGUNDOS = 10 # En producción pondremos 300 (5 min), ahora 10 para probar rápido
-
-def run_agent():
-    print(f"Agente ITAM Iniciado. Servidor: {SERVER_URL}")
-    print("------------------------------------------------")
+def main():
+    print("========================================")
+    print("      AGENTE DE INVENTARIO ITAM        ")
+    print("========================================")
+    print(f"Target Server: {settings.API_URL}")
+    print(f"Intervalo: {settings.REPORT_INTERVAL} segundos")
+    print("========================================\n")
 
     while True:
-        print("Recolectando datos del sistema...")
-        datos = get_system_info()
+        print(f"[{time.strftime('%H:%M:%S')}] Iniciando ciclo de reporte...")
         
-        if datos:
-            try:
-                print(f"Enviando datos de: {datos['hostname']} ({datos['ip_address']})...")
-                
-                # ENVIAR AL SERVIDOR (POST)
-                response = requests.post(SERVER_URL, json=datos)
-                
-                if response.status_code == 200:
-                    print("Servidor respondió: OK - Datos guardados.")
-                else:
-                    print(f"Error del servidor: {response.status_code} - {response.text}")
-                    
-            except requests.exceptions.ConnectionError:
-                print("No se pudo conectar al servidor. ¿Está prendido?")
+        # 1. Recolectar
+        data = get_system_data()
         
-        print(f"Durmiendo {INTERVALO_SEGUNDOS} segundos...")
-        time.sleep(INTERVALO_SEGUNDOS)
+        if data:
+            print(f"    Host: {data['hostname']}")
+            print(f"    User: {data['usuario']}")
+            
+            # 2. Enviar
+            success = send_report(data)
+        else:
+            print("   ⚠️ No se pudieron recolectar datos del sistema.")
+
+        # 3. Esperar
+        print(f"   💤 Durmiendo {settings.REPORT_INTERVAL} segundos...\n")
+        time.sleep(settings.REPORT_INTERVAL)
 
 if __name__ == "__main__":
-    run_agent()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n🛑 Agente detenido por el usuario.")
+        sys.exit(0)
