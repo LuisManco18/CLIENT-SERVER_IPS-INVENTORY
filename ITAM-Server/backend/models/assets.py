@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, ForeignKey, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from ..database import Base
+from database import Base
 
 class Activo(Base):
     __tablename__ = "activos"

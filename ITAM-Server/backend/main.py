@@ -5,10 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 # GOOD (Fix)
 from database import engine, get_db, Base
-from .config import settings
-from .models import assets, locations, users
+from config import settings
+from models import assets, locations, users
 
-from .schemas import asset_schema
+from schemas import asset_schema
 
 # --- CREACIÓN AUTOMÁTICA DE TABLAS ---
 # Esperamos un poco a que la BD inicie (parche simple para Docker)
