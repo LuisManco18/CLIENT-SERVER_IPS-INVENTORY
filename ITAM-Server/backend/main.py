@@ -1,6 +1,7 @@
 import time
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from routers import dashboard
 
 from sqlalchemy.orm import Session
 # GOOD (Fix)
@@ -80,3 +81,5 @@ def recibir_reporte(reporte: asset_schema.AssetReportCreate, db: Session = Depen
     db.commit()
     
     return {"id": activo.id, "hostname": activo.hostname, "estado": "procesado"}
+
+app.include_router(dashboard.router)

@@ -31,6 +31,18 @@ services:
       - db
     volumes:
       - ./backend:/app # Para que los cambios de código se reflejen sin reiniciar
-
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: itam_frontend
+    restart: always
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
 volumes:
   postgres_data:
