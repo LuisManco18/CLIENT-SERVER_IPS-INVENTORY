@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -15,7 +15,13 @@ class Piso(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String) # Ej: Piso 1, Mezzanine
     nivel = Column(Integer) # 1, 2, -1
-    mapa_url = Column(String, nullable=True) # Ruta de la imagen
+    
+    # Almacenamiento de imagen en base de datos
+    mapa_imagen = Column(String, nullable=True)  # Base64 encoded image
+    mapa_filename = Column(String, nullable=True)  # Nombre original del archivo
+    mapa_content_type = Column(String, nullable=True)  # image/jpeg, image/png
+    ancho_imagen = Column(Integer, nullable=True)  # Ancho en pixels
+    alto_imagen = Column(Integer, nullable=True)  # Alto en pixels
     
     edificio_id = Column(Integer, ForeignKey("edificios.id"))
     
