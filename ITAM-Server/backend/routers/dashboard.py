@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import datetime, timedelta
-
+from database import get_db
+from models import assets
 
 router = APIRouter(
     prefix="/api/assets",
