@@ -4,96 +4,193 @@ import InventoryTable from './components/InventoryTable';
 import MapView from './components/MapView';
 import StatsWidget from './components/StatsWidget';
 import FloorManager from './components/FloorManager';
-import { LayoutDashboard, Map, Settings, Building2 } from 'lucide-react';
+import { LayoutDashboard, Map, Bell, Moon, Download, Plus } from 'lucide-react';
 
 function App() {
   const [vista, setVista] = useState('logica');
   const [showFloorManager, setShowFloorManager] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-purple-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div style={{ minHeight: '100vh', background: 'var(--bg-main)', padding: '2rem' }}>
+      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         {/* Header */}
-        <motion.header
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8 glass rounded-2xl shadow-xl overflow-hidden"
-        >
-          <div className="gradient-primary p-6 text-white">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-              {/* Logo and Title */}
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                  <LayoutDashboard size={32} />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold">ITAM System</h1>
-                  <p className="text-blue-100 text-sm">IT Asset Management Platform</p>
-                </div>
+        <header style={{
+          background: 'var(--gradient-header)',
+          borderRadius: '1rem',
+          padding: '1.5rem 2rem',
+          marginBottom: '2rem',
+          boxShadow: 'var(--shadow-lg)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* Logo and Title */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                padding: '0.75rem',
+                borderRadius: '0.75rem',
+                backdropFilter: 'blur(10px)'
+              }}>
+                <LayoutDashboard size={28} color="white" />
+              </div>
+              <div>
+                <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: '700', color: 'white' }}>
+                  ITAM System
+                </h1>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.8)' }}>
+                  IT Asset Management Platform
+                </p>
+              </div>
+            </div>
+
+            {/* Navigation and Actions */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+              {/* Navigation Pills */}
+              <div style={{
+                display: 'flex',
+                background: 'rgba(255, 255, 255, 0.1)',
+                padding: '0.375rem',
+                borderRadius: '0.75rem',
+                gap: '0.5rem'
+              }}>
+                <button
+                  onClick={() => setVista('logica')}
+                  style={{
+                    padding: '0.625rem 1.5rem',
+                    borderRadius: '0.5rem',
+                    border: 'none',
+                    fontSize: '0.875rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    background: vista === 'logica' ? 'white' : 'transparent',
+                    color: vista === 'logica' ? 'var(--primary-blue)' : 'white'
+                  }}
+                >
+                  📋 Inventory
+                </button>
+                <button
+                  onClick={() => setVista('fisica')}
+                  style={{
+                    padding: '0.625rem 1.5rem',
+                    borderRadius: '0.5rem',
+                    border: 'none',
+                    fontSize: '0.875rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    background: vista === 'fisica' ? 'white' : 'transparent',
+                    color: vista === 'fisica' ? 'var(--primary-blue)' : 'white'
+                  }}
+                >
+                  🗺️ Physical Map
+                </button>
               </div>
 
-              {/* Navigation Tabs */}
-              <div className="flex items-center gap-3">
-                <div className="flex bg-white/10 backdrop-blur-sm p-1.5 rounded-xl">
-                  <button
-                    onClick={() => setVista('logica')}
-                    className={`
-                      px-6 py-2.5 rounded-lg flex gap-2 items-center text-sm font-semibold
-                      transition-all duration-300
-                      ${vista === 'logica'
-                        ? 'bg-white text-blue-600 shadow-lg'
-                        : 'text-white hover:bg-white/10'
-                      }
-                    `}
-                  >
-                    <LayoutDashboard size={18} />
-                    Inventario
-                  </button>
-                  <button
-                    onClick={() => setVista('fisica')}
-                    className={`
-                      px-6 py-2.5 rounded-lg flex gap-2 items-center text-sm font-semibold
-                      transition-all duration-300
-                      ${vista === 'fisica'
-                        ? 'bg-white text-blue-600 shadow-lg'
-                        : 'text-white hover:bg-white/10'
-                      }
-                    `}
-                  >
-                    <Map size={18} />
-                    Mapa Físico
-                  </button>
-                </div>
-
-                {/* Settings Button */}
-                <button
-                  onClick={() => setShowFloorManager(true)}
-                  className="p-3 bg-white/10 backdrop-blur-sm rounded-xl hover:bg-white/20 transition-colors"
-                  title="Gestionar Pisos"
-                >
-                  <Building2 size={20} />
+              {/* Right Icons */}
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  padding: '0.625rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Bell size={20} color="white" />
+                </button>
+                <button style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  padding: '0.625rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Moon size={20} color="white" />
                 </button>
               </div>
             </div>
           </div>
-        </motion.header>
+        </header>
 
-        {/* Stats Widget - Only in Inventory View */}
-        <AnimatePresence mode="wait">
-          {vista === 'logica' && <StatsWidget key="stats" />}
-        </AnimatePresence>
+        {/* Dashboard Overview Section - Only show in Inventory view */}
+        {vista === 'logica' && (
+          <div style={{ marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+                  Dashboard Overview
+                </h2>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                  Real-time monitoring and asset tracking.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button style={{
+                  padding: '0.625rem 1.25rem',
+                  border: '1px solid var(--border-medium)',
+                  borderRadius: '0.5rem',
+                  background: 'white',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  color: 'var(--text-primary)'
+                }}>
+                  <Download size={16} />
+                  Export Report
+                </button>
+                <button style={{
+                  padding: '0.625rem 1.25rem',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  background: 'var(--primary-blue)',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  color: 'white'
+                }}>
+                  <Plus size={16} />
+                  Add Asset
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Stats Widget */}
+        {vista === 'logica' && <StatsWidget />}
 
         {/* Main Content */}
         <AnimatePresence mode="wait">
-          <motion.main
-            key={vista}
-            initial={{ opacity: 0, x: vista === 'logica' ? -20 : 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: vista === 'logica' ? 20 : -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            {vista === 'logica' ? <InventoryTable /> : <MapView />}
-          </motion.main>
+          {vista === 'logica' ? (
+            <motion.div
+              key="logica"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+            >
+              <InventoryTable />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="fisica"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <MapView onOpenFloorManager={() => setShowFloorManager(true)} />
+            </motion.div>
+          )}
         </AnimatePresence>
 
         {/* Floor Manager Modal */}
@@ -101,26 +198,9 @@ function App() {
           isOpen={showFloorManager}
           onClose={() => setShowFloorManager(false)}
           onFloorCreated={() => {
-            // Refresh data if needed
+            // Refresh map view if needed
           }}
         />
-
-        {/* Footer */}
-        <motion.footer
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-8 text-center text-sm text-gray-600"
-        >
-          <div className="glass px-6 py-4 rounded-xl inline-block">
-            <p>
-              ITAM System v1.0 - Plataforma de Gestión de Activos TI
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              Monitoreo en tiempo real • Mapas interactivos • Inventario automatizado
-            </p>
-          </div>
-        </motion.footer>
       </div>
     </div>
   );

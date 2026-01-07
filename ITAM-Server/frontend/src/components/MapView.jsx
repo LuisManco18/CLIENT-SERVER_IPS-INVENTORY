@@ -2,8 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import Draggable from 'react-draggable';
-import { ZoomIn, ZoomOut, Maximize2, Grid3x3, RefreshCw, Layers } from 'lucide-react';
+import {
+    ZoomIn, ZoomOut, Maximize2, Grid3x3, RefreshCw, Layers,
+    Save, Lightbulb, ChevronDown, Plus
+} from 'lucide-react';
 import AssetIcon from './AssetIcon';
+import UnassignedAssetsList from './UnassignedAssetsList';
 import useRealTimeAssets from '../hooks/useRealTimeAssets';
 
 // Sub-component for each draggable asset
@@ -53,7 +57,7 @@ const DraggableAsset = ({ pc, onStop, scale }) => {
     );
 };
 
-export default function MapView() {
+export default function MapView({ onOpenFloorManager }) {
     const { activos, loading } = useRealTimeAssets();
     const [pisos, setPisos] = useState([]);
     const [selectedPiso, setSelectedPiso] = useState(null);
@@ -61,6 +65,7 @@ export default function MapView() {
     const [zoom, setZoom] = useState(1);
     const [showGrid, setShowGrid] = useState(false);
     const [loadingImage, setLoadingImage] = useState(false);
+    const [draggedAsset, setDraggedAsset] = useState(null);
 
     const API_ASSETS = 'http://localhost:8000/api/assets';
     const API_FLOORS = 'http://localhost:8000/api/floors';
@@ -112,18 +117,29 @@ export default function MapView() {
         }
     };
 
+    const handleDragStart = (e, asset) => {
+        setDraggedAsset(asset);
+        e.dataTransfer.effectAllowed = 'move';
+    };
+
     const handleZoomIn = () => setZoom(prev => Math.min(prev + 0.2, 3));
     const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.2, 0.5));
     const handleResetZoom = () => setZoom(1);
 
-    // Filter assets for current floor
+    // Filter assets for current floor and unassigned
     const activosEnPiso = activos.filter(pc => pc.piso_id === selectedPiso);
+    const activosSinAsignar = activos.filter(pc => !pc.piso_id);
+
+    // Calculate floor stats
+    const onlineCount = activosEnPiso.filter(a => a.is_online).length;
+    const offlineCount = activosEnPiso.filter(a => !a.is_online).length;
+    const totalEquipos = activosEnPiso.length;
 
     if (loading) {
         return (
             <div className="h-[600px] bg-white rounded-xl shadow-lg flex items-center justify-center">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue mx-auto mb-4" />
                     <p className="text-gray-600">Cargando mapa...</p>
                 </div>
             </div>
@@ -134,160 +150,229 @@ export default function MapView() {
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-xl shadow-lg overflow-hidden"
+            className="flex gap-6"
         >
-            {/* Toolbar */}
-            <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-                <div className="flex flex-wrap gap-4 justify-between items-center">
-                    {/* Floor Selector */}
-                    <div className="flex items-center gap-3">
-                        <Layers className="text-gray-600" size={20} />
-                        <select
-                            value={selectedPiso || ''}
-                            onChange={(e) => setSelectedPiso(parseInt(e.target.value))}
-                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                            <option value="">Seleccionar piso...</option>
-                            {pisos.map(piso => (
-                                <option key={piso.id} value={piso.id}>
-                                    {piso.nombre} (Nivel {piso.nivel})
-                                </option>
-                            ))}
-                        </select>
+            {/* Left Sidebar */}
+            <div className="w-[280px] flex-shrink-0 space-y-6">
+                {/* Floor Selection Card */}
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Layers className="text-primary-blue" size={20} />
+                        <h3 className="font-bold text-gray-900">Selección de Piso</h3>
                     </div>
 
-                    {/* Controls */}
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setShowGrid(!showGrid)}
-                            className={`p-2 rounded-lg transition-colors ${showGrid ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                }`}
-                            title="Toggle Grid"
-                        >
-                            <Grid3x3 size={20} />
-                        </button>
+                    {/* Current Floor Label */}
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Piso Actual
+                    </label>
 
-                        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                    {/* Floor Dropdown */}
+                    <select
+                        value={selectedPiso || ''}
+                        onChange={(e) => setSelectedPiso(parseInt(e.target.value))}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-blue focus:border-primary-blue font-medium transition-all mb-4"
+                    >
+                        <option value="">Seleccionar piso...</option>
+                        {pisos.map(piso => (
+                            <option key={piso.id} value={piso.id}>
+                                Piso {piso.nivel} - {piso.nombre}
+                            </option>
+                        ))}
+                    </select>
+
+                    {/* Manage Floors Button */}
+                    <button
+                        onClick={onOpenFloorManager}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-blue text-white rounded-lg hover:bg-opacity-90 transition-all font-semibold"
+                    >
+                        <Plus size={18} />
+                        Gestionar Pisos
+                    </button>
+                </div>
+
+                {/* Floor Stats Card */}
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                    <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">
+                        Estado del Piso
+                    </h3>
+
+                    <div className="space-y-3">
+                        {/* Online */}
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                                <span className="text-sm text-gray-600">Online</span>
+                            </div>
+                            <span className="text-2xl font-bold text-gray-900">{onlineCount}</span>
+                        </div>
+
+                        {/* Offline */}
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                                <span className="text-sm text-gray-600">Offline</span>
+                            </div>
+                            <span className="text-2xl font-bold text-gray-900">{offlineCount}</span>
+                        </div>
+
+                        {/* Divider */}
+                        <div className="border-t border-gray-200 my-3"></div>
+
+                        {/* Total */}
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700">Total Equipos</span>
+                            <span className="text-xl font-bold text-gray-900">{totalEquipos}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Unassigned Assets */}
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                    <UnassignedAssetsList
+                        assets={activosSinAsignar}
+                        onDragStart={handleDragStart}
+                    />
+                </div>
+            </div>
+
+            {/* Main Map Area */}
+            <div className="flex-1 bg-white rounded-xl shadow-lg overflow-hidden">
+                {/* Toolbar */}
+                <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="flex flex-wrap gap-4 justify-between items-center">
+                        {/* Zoom Controls */}
+                        <div className="flex items-center gap-2">
                             <button
                                 onClick={handleZoomOut}
-                                className="p-2 hover:bg-white rounded transition-colors"
+                                className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                                 title="Zoom Out"
                             >
                                 <ZoomOut size={18} />
                             </button>
-                            <span className="px-3 text-sm font-medium">{Math.round(zoom * 100)}%</span>
+                            <span className="px-3 text-sm font-medium min-w-[60px] text-center">
+                                {Math.round(zoom * 100)}%
+                            </span>
                             <button
                                 onClick={handleZoomIn}
-                                className="p-2 hover:bg-white rounded transition-colors"
+                                className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                                 title="Zoom In"
                             >
                                 <ZoomIn size={18} />
                             </button>
                             <button
                                 onClick={handleResetZoom}
-                                className="p-2 hover:bg-white rounded transition-colors"
+                                className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                                 title="Reset Zoom"
                             >
                                 <Maximize2 size={18} />
                             </button>
+                            <button
+                                onClick={() => setShowGrid(!showGrid)}
+                                className={`p-2 rounded-lg transition-colors ${showGrid ? 'bg-primary-blue text-white' : 'bg-gray-100 hover:bg-gray-200'
+                                    }`}
+                                title="Toggle Grid"
+                            >
+                                <Grid3x3 size={18} />
+                            </button>
                         </div>
 
-                        <button
-                            onClick={loadFloors}
-                            className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                            title="Refresh"
+                        {/* Right Actions */}
+                        <div className="flex items-center gap-3">
+                            {/* Auto-save Tip */}
+                            <div className="flex items-center gap-2 bg-yellow-50 px-3 py-2 rounded-lg border border-yellow-200">
+                                <Lightbulb size={16} className="text-yellow-600" />
+                                <span className="text-xs text-yellow-800 font-medium">
+                                    Tip: Los cambios se guardan automáticamente
+                                </span>
+                            </div>
+
+                            {/* Save Button */}
+                            <button
+                                onClick={loadFloors}
+                                className="flex items-center gap-2 px-4 py-2 bg-primary-blue text-white rounded-lg hover:bg-opacity-90 transition-all shadow-md font-semibold"
+                            >
+                                <Save size={18} />
+                                Guardar Posiciones
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Map Container */}
+                <div className="relative h-[600px] bg-gray-100 overflow-auto">
+                    {loadingImage ? (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="text-center">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-blue mx-auto mb-4" />
+                                <p className="text-gray-600">Cargando plano...</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div
+                            className="relative w-full h-full"
+                            style={{
+                                transform: `scale(${zoom})`,
+                                transformOrigin: 'top left',
+                                transition: 'transform 0.2s ease'
+                            }}
                         >
-                            <RefreshCw size={20} />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Stats */}
-                <div className="mt-3 flex gap-4 text-sm">
-                    <span className="text-gray-600">
-                        Equipos en este piso: <span className="font-semibold">{activosEnPiso.length}</span>
-                    </span>
-                    <span className="text-green-600">
-                        Online: <span className="font-semibold">{activosEnPiso.filter(a => a.is_online).length}</span>
-                    </span>
-                    <span className="text-red-600">
-                        Offline: <span className="font-semibold">{activosEnPiso.filter(a => !a.is_online).length}</span>
-                    </span>
-                </div>
-            </div>
-
-            {/* Map Container */}
-            <div className="relative h-[600px] bg-gray-100 overflow-auto">
-                {loadingImage ? (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="text-center">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-                            <p className="text-gray-600">Cargando plano...</p>
-                        </div>
-                    </div>
-                ) : (
-                    <div
-                        className="relative w-full h-full"
-                        style={{
-                            transform: `scale(${zoom})`,
-                            transformOrigin: 'top left',
-                            transition: 'transform 0.2s ease'
-                        }}
-                    >
-                        {/* Background Image */}
-                        {pisoImage ? (
-                            <img
-                                src={pisoImage}
-                                alt="Floor Plan"
-                                className="absolute inset-0 w-full h-full object-contain"
-                            />
-                        ) : (
-                            <div className="absolute inset-0 flex items-center justify-center bg-gray-200">
-                                <div className="text-center text-gray-500">
-                                    <Layers size={48} className="mx-auto mb-2 opacity-50" />
-                                    <p>No hay plano para este piso</p>
-                                    <p className="text-sm">Sube una imagen desde la gestión de pisos</p>
+                            {/* Background Image */}
+                            {pisoImage ? (
+                                <img
+                                    src={pisoImage}
+                                    alt="Floor Plan"
+                                    className="absolute inset-0 w-full h-full object-contain"
+                                />
+                            ) : (
+                                <div className="absolute inset-0 flex items-center justify-center bg-gray-200">
+                                    <div className="text-center text-gray-500">
+                                        <Layers size={48} className="mx-auto mb-2 opacity-50" />
+                                        <p className="font-semibold">No hay plano para este piso</p>
+                                        <p className="text-sm mt-2">Sube una imagen del plano arquitectónico (PNG, JPG)</p>
+                                        <p className="text-sm">para comenzar a ubicar los activos.</p>
+                                        <button
+                                            onClick={onOpenFloorManager}
+                                            className="mt-4 px-4 py-2 bg-primary-blue text-white rounded-lg hover:bg-opacity-90 transition-all"
+                                        >
+                                            Subir Plano
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
-                        {/* Grid Overlay */}
-                        {showGrid && (
-                            <div
-                                className="absolute inset-0 pointer-events-none"
-                                style={{
-                                    backgroundImage: `
-                    linear-gradient(to right, rgba(0,0,0,0.1) 1px, transparent 1px),
-                    linear-gradient(to bottom, rgba(0,0,0,0.1) 1px, transparent 1px)
-                  `,
-                                    backgroundSize: '50px 50px'
-                                }}
-                            />
-                        )}
+                            {/* Grid Overlay */}
+                            {showGrid && (
+                                <div
+                                    className="absolute inset-0 pointer-events-none"
+                                    style={{
+                                        backgroundImage: `
+                                            linear-gradient(to right, rgba(0,0,0,0.1) 1px, transparent 1px),
+                                            linear-gradient(to bottom, rgba(0,0,0,0.1) 1px, transparent 1px)
+                                        `,
+                                        backgroundSize: '50px 50px'
+                                    }}
+                                />
+                            )}
 
-                        {/* Draggable Assets */}
-                        {activosEnPiso.map(pc => (
-                            <DraggableAsset
-                                key={pc.id}
-                                pc={pc}
-                                onStop={handleStop}
-                                scale={zoom}
-                            />
-                        ))}
+                            {/* Draggable Assets */}
+                            {activosEnPiso.map(pc => (
+                                <DraggableAsset
+                                    key={pc.id}
+                                    pc={pc}
+                                    onStop={handleStop}
+                                    scale={zoom}
+                                />
+                            ))}
 
-                        {/* Instructions overlay */}
-                        {activosEnPiso.length === 0 && pisoImage && (
-                            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 glass px-4 py-2 rounded-lg text-sm text-gray-700">
-                                No hay equipos asignados a este piso
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {/* Help Text */}
-            <div className="p-4 bg-gray-50 border-t border-gray-200 text-sm text-gray-600">
-                💡 <strong>Tip:</strong> Arrastra los iconos de los equipos para ubicarlos en el mapa. Las posiciones se guardan automáticamente.
+                            {/* Instructions overlay */}
+                            {activosEnPiso.length === 0 && pisoImage && (
+                                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 glass px-4 py-2 rounded-lg text-sm text-gray-700">
+                                    No hay equipos asignados a este piso
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
         </motion.div>
     );

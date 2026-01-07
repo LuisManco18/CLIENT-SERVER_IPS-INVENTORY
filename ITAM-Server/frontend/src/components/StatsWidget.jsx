@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
-import { TrendingUp, TrendingDown, Activity, AlertCircle, Monitor, Server } from 'lucide-react';
+import { Activity, AlertCircle, Monitor, Server, Wifi, WifiOff } from 'lucide-react';
 
 export default function StatsWidget() {
     const [stats, setStats] = useState({
@@ -15,7 +15,6 @@ export default function StatsWidget() {
 
     useEffect(() => {
         fetchStats();
-        // Actualizar cada 30 segundos
         const interval = setInterval(fetchStats, 30000);
         return () => clearInterval(interval);
     }, []);
@@ -33,112 +32,145 @@ export default function StatsWidget() {
 
     const statCards = [
         {
-            title: 'Total Equipos',
+            title: 'Total Assets',
             value: stats.total,
             icon: Monitor,
-            gradient: 'from-blue-500 to-cyan-500',
-            bgGradient: 'from-blue-50 to-cyan-50',
-            iconColor: 'text-blue-600'
+            iconBgColor: 'var(--icon-bg-blue)',
+            iconColor: 'var(--icon-blue)',
+            subtitle: '+12 this week',
+            subtitleColor: 'var(--status-online)'
         },
         {
             title: 'Online',
             value: stats.online,
-            icon: Activity,
-            gradient: 'from-green-500 to-emerald-500',
-            bgGradient: 'from-green-50 to-emerald-50',
-            iconColor: 'text-green-600',
-            trend: stats.online > stats.offline ? 'up' : 'down'
+            icon: Wifi,
+            iconBgColor: 'var(--icon-bg-green)',
+            iconColor: 'var(--icon-green)',
+            subtitle: '92% Availability',
+            subtitleColor: 'var(--text-secondary)'
         },
         {
             title: 'Offline',
             value: stats.offline,
-            icon: AlertCircle,
-            gradient: 'from-red-500 to-orange-500',
-            bgGradient: 'from-red-50 to-orange-50',
-            iconColor: 'text-red-600'
+            icon: WifiOff,
+            iconBgColor: 'var(--icon-bg-gray)',
+            iconColor: 'var(--icon-gray)',
+            subtitle: 'Last check: 2 mins ago',
+            subtitleColor: 'var(--text-secondary)'
         },
         {
-            title: 'En Dominio',
-            value: stats.en_dominio,
-            icon: Server,
-            gradient: 'from-purple-500 to-pink-500',
-            bgGradient: 'from-purple-50 to-pink-50',
-            iconColor: 'text-purple-600'
-        },
-        {
-            title: 'Alertas',
+            title: 'Critical Alerts',
             value: stats.alertas,
             icon: AlertCircle,
-            gradient: 'from-yellow-500 to-amber-500',
-            bgGradient: 'from-yellow-50 to-amber-50',
-            iconColor: 'text-yellow-600',
-            pulse: stats.alertas > 0
+            iconBgColor: 'var(--icon-bg-red)',
+            iconColor: 'var(--icon-red)',
+            subtitle: 'Requires attention',
+            subtitleColor: 'var(--status-offline)'
         }
     ];
 
     if (loading) {
         return (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-                {[...Array(5)].map((_, i) => (
-                    <div key={i} className="skeleton h-32 rounded-xl" />
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gap: '1.5rem',
+                marginBottom: '2rem'
+            }}>
+                {[...Array(4)].map((_, i) => (
+                    <div key={i} style={{
+                        height: '140px',
+                        background: 'linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%)',
+                        backgroundSize: '200% 100%',
+                        animation: 'shimmer 1.5s infinite',
+                        borderRadius: '0.75rem'
+                    }} />
                 ))}
             </div>
         );
     }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: '1.5rem',
+            marginBottom: '2rem'
+        }}>
             {statCards.map((card, index) => (
                 <motion.div
                     key={card.title}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
-                    className={`
-            relative overflow-hidden rounded-xl shadow-lg
-            bg-gradient-to-br ${card.bgGradient}
-            border border-white/50
-            card-hover
-            ${card.pulse ? 'animate-pulse' : ''}
-          `}
+                    style={{
+                        background: 'var(--bg-card)',
+                        borderRadius: '0.75rem',
+                        padding: '1.5rem',
+                        boxShadow: 'var(--shadow-md)',
+                        border: '1px solid var(--border-light)',
+                        transition: 'all 0.3s ease',
+                        cursor: 'default'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.boxShadow = 'var(--shadow-md)';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                    }}
                 >
-                    {/* Gradient overlay */}
-                    <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${card.gradient} opacity-10 rounded-full -mr-16 -mt-16`} />
-
-                    <div className="relative p-6">
-                        {/* Icon */}
-                        <div className="flex items-center justify-between mb-4">
-                            <div className={`p-3 rounded-xl bg-white/80 shadow-md ${card.iconColor}`}>
-                                <card.icon size={24} />
-                            </div>
-
-                            {/* Trend indicator */}
-                            {card.trend && (
-                                <div className={`flex items-center gap-1 text-sm font-semibold ${card.trend === 'up' ? 'text-green-600' : 'text-red-600'
-                                    }`}>
-                                    {card.trend === 'up' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Value */}
-                        <div className="space-y-1">
-                            <motion.div
-                                key={card.value}
-                                initial={{ scale: 1.2, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                className="text-4xl font-bold text-gray-800"
-                            >
-                                {card.value}
-                            </motion.div>
-                            <div className="text-sm font-medium text-gray-600">
-                                {card.title}
-                            </div>
+                    {/* Icon */}
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        marginBottom: '1rem'
+                    }}>
+                        <div style={{
+                            padding: '0.75rem',
+                            borderRadius: '0.75rem',
+                            backgroundColor: card.iconBgColor,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}>
+                            <card.icon size={24} style={{ color: card.iconColor }} />
                         </div>
                     </div>
 
-                    {/* Bottom accent */}
-                    <div className={`h-1 bg-gradient-to-r ${card.gradient}`} />
+                    {/* Content */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <div style={{
+                            fontSize: '0.875rem',
+                            fontWeight: '500',
+                            color: 'var(--text-secondary)'
+                        }}>
+                            {card.title}
+                        </div>
+                        <motion.div
+                            key={card.value}
+                            initial={{ scale: 1.1, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            style={{
+                                fontSize: '2rem',
+                                fontWeight: '700',
+                                color: 'var(--text-primary)',
+                                lineHeight: '1'
+                            }}
+                        >
+                            {card.value.toLocaleString()}
+                        </motion.div>
+                        {card.subtitle && (
+                            <div style={{
+                                fontSize: '0.75rem',
+                                color: card.subtitleColor,
+                                fontWeight: card.title === 'Critical Alerts' && card.value > 0 ? '600' : '400'
+                            }}>
+                                {card.subtitle}
+                            </div>
+                        )}
+                    </div>
                 </motion.div>
             ))}
         </div>

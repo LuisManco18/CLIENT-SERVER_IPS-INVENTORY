@@ -162,7 +162,7 @@ export default function FloorManager({ isOpen, onClose, onFloorCreated }) {
                                         type="text"
                                         value={formData.nombre}
                                         onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all"
                                         placeholder="Ej: Piso 1"
                                         required
                                     />
@@ -174,7 +174,7 @@ export default function FloorManager({ isOpen, onClose, onFloorCreated }) {
                                         type="number"
                                         value={formData.nivel}
                                         onChange={(e) => setFormData({ ...formData, nivel: parseInt(e.target.value) })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all"
                                         required
                                     />
                                 </div>
@@ -187,7 +187,7 @@ export default function FloorManager({ isOpen, onClose, onFloorCreated }) {
                                     {...getRootProps()}
                                     className={`
                     border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all
-                    ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400'}
+                    ${isDragActive ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-red-400'}
                   `}
                                 >
                                     <input {...getInputProps()} />
@@ -252,10 +252,10 @@ export default function FloorManager({ isOpen, onClose, onFloorCreated }) {
                                             <div className="flex gap-2">
                                                 <button
                                                     onClick={() => handleEdit(piso)}
-                                                    className="p-2 hover:bg-blue-100 rounded-lg transition-colors"
+                                                    className="p-2 hover:bg-red-100 rounded-lg transition-colors"
                                                     title="Editar"
                                                 >
-                                                    <Edit size={16} className="text-blue-600" />
+                                                    <Edit size={16} className="text-red-600" />
                                                 </button>
                                                 <button
                                                     onClick={() => handleDelete(piso.id)}
