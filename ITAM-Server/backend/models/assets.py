@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, ForeignKey, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
+from datetime import datetime, timedelta
 from database import Base
 
 class Activo(Base):
@@ -26,6 +27,9 @@ class Activo(Base):
     usuario_detectado = Column(String)
     tipo_asignacion = Column(String, default="PLANILLA") # PRACTICANTE, VOLUNTARIO...
     
+    # Visualización
+    icono_tipo = Column(String, default="desktop")  # desktop, laptop, server
+    
     # Estado
     ultimo_reporte = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
@@ -36,3 +40,10 @@ class Activo(Base):
     
     # Relación inversa (opcional, para consultas avanzadas)
     piso = relationship("Piso", back_populates="activos")
+    
+    def is_online(self, threshold_minutes=5):
+        """Determina si el activo está online basado en el último reporte"""
+        if not self.ultimo_reporte:
+            return False
+        limite = datetime.now() - timedelta(minutes=threshold_minutes)
+        return self.ultimo_reporte >= limite

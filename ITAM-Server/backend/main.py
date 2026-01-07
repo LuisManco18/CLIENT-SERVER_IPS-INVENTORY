@@ -1,13 +1,13 @@
 import time
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from routers import dashboard
+from routers import dashboard, floors
 
 from sqlalchemy.orm import Session
 # GOOD (Fix)
 from database import engine, get_db, Base
 from config import settings
-from models import assets, locations, users
+from models import assets, locations
 
 from schemas import asset_schema
 
@@ -27,7 +27,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- RUTAS DE PRUEBA (Moveremos esto a 'routers' en la parte 2) ---
 
 @app.get("/")
 def health_check():
@@ -82,4 +81,6 @@ def recibir_reporte(reporte: asset_schema.AssetReportCreate, db: Session = Depen
     
     return {"id": activo.id, "hostname": activo.hostname, "estado": "procesado"}
 
+# Registrar routers
 app.include_router(dashboard.router)
+app.include_router(floors.router)

@@ -1,0 +1,9 @@
+{
+  "api_url": "http://localhost:8000",
+  "api_token": "sk_live_token_maestro_para_agentes",
+  "report_interval": 300,
+  "request_timeout": 30,
+  "max_retries": 3,
+  "retry_delay": 5,
+  "silent_mode": true
+}
