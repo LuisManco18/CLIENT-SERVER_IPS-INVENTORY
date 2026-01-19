@@ -17,6 +17,7 @@ import InventoryTable from "./components/InventoryTable";
 import StatsWidget from "./components/StatsWidget";
 import FloorManager from "./components/FloorManager";
 import BuildingManager from "./components/BuildingManager";
+import InfrastructurePage from "./pages/InfrastructurePage";
 import MapView from "./components/MapView";
 import { AuthProvider, useAuth } from "./AuthContext";
 
@@ -165,10 +166,9 @@ const AppContent = () => {
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
+                className="h-[calc(100vh-100px)]" // Adjust height as needed
               >
-                <BuildingManager />
-                <div className="h-8" />
-                <FloorManager />
+                <InfrastructurePage />
               </motion.div>
             } />
           </Routes>

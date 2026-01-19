@@ -29,6 +29,7 @@ class Activo(Base):
     
     # Visualización
     icono_tipo = Column(String, default="desktop")  # desktop, laptop, server
+    area = Column(String, nullable=True)
     
     # Estado
     ultimo_reporte = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -39,7 +40,11 @@ class Activo(Base):
     pos_y = Column(Float, nullable=True)
     
     # Relación inversa (opcional, para consultas avanzadas)
+    # Relación inversa (opcional, para consultas avanzadas)
     piso = relationship("Piso", back_populates="activos")
+    
+    # Historial de cambios
+    historial = relationship("HistorialActivo", back_populates="activo", cascade="all, delete-orphan")
     
     def is_online(self, threshold_minutes=5):
         """Determina si el activo está online basado en el último reporte"""

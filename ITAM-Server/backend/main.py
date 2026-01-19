@@ -1,14 +1,19 @@
 import time
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from routers import dashboard, floors, buildings, auth
+from routers import dashboard, floors, buildings, auth, areas, reports, history, glossary, catalogs
+from utils.history import log_asset_change
+from utils.parser import parse_hostname_logic
+
+# ... (omitted code) ...
+
+
 
 from sqlalchemy.orm import Session
-# GOOD (Fix)
 from database import engine, get_db, Base
 from config import settings
-from models import assets, locations
-
+# Importar TODOS los modelos antes de create_all para que SQLAlchemy los detecte
+from models import assets, locations, users, history, glossary 
 from schemas import asset_schema
 
 # --- CREACIÓN AUTOMÁTICA DE TABLAS ---
@@ -48,11 +53,26 @@ def recibir_reporte(reporte: asset_schema.AssetReportCreate, db: Session = Depen
     # 2. Buscar si existe
     activo = db.query(assets.Activo).filter(assets.Activo.serial_number == reporte.serial_number).first()
     
-    # 3. Lógica de Dominio (Ejemplo simple)
-    en_dominio = "ED" in reporte.hostname or "PC" in reporte.hostname
+    # 3. Lógica de Dominio y Area via Hostname Parser
+    parsed_info = parse_hostname_logic(reporte.hostname, db)
+    
+    # "si no coincida la estructura entonces seria no dominimio"
+    en_dominio = parsed_info["is_domain"]
+    
+    # Extraer area si esta disponible
+    parsed_area = parsed_info.get("derived_area")
+    
+    # Opcional: Extraer piso si queremos actualizarlo automaticamente
+    # piso_val = parsed_info["parts"].get("piso_val")
 
     if activo:
-        # ACTUALIZAR
+        # ACTUALIZAR Y REGISTRAR HISTORIAL
+        # Comparar y loguear campos críticos
+        log_asset_change(db, activo.id, "hostname", activo.hostname, reporte.hostname)
+        log_asset_change(db, activo.id, "ip_address", activo.ip_address, reporte.ip_address)
+        log_asset_change(db, activo.id, "usuario", activo.usuario_detectado, reporte.usuario)
+        log_asset_change(db, activo.id, "os", activo.sistema_operativo, reporte.sistema_operativo)
+        
         activo.hostname = reporte.hostname
         activo.ip_address = reporte.ip_address
         activo.mac_address = reporte.mac_address
@@ -63,6 +83,11 @@ def recibir_reporte(reporte: asset_schema.AssetReportCreate, db: Session = Depen
         activo.procesador = reporte.procesador
         activo.memoria_ram = reporte.memoria_ram
         activo.es_dominio = en_dominio
+        if parsed_area:
+            if activo.area != parsed_area:
+                log_asset_change(db, activo.id, "area", activo.area, parsed_area)
+                activo.area = parsed_area
+
         # ultimo_reporte se actualiza solo por la config del modelo
     else:
         # CREAR
@@ -77,12 +102,16 @@ def recibir_reporte(reporte: asset_schema.AssetReportCreate, db: Session = Depen
             sistema_operativo=reporte.sistema_operativo,
             procesador=reporte.procesador,
             memoria_ram=reporte.memoria_ram,
-            es_dominio=en_dominio
+            es_dominio=en_dominio,
+            area=parsed_area # Asginar area derivada
         )
         db.add(nuevo_activo)
         db.commit() # Commit para obtener el ID
         db.refresh(nuevo_activo)
         activo = nuevo_activo
+        
+        # Historial de creación (opcional)
+        log_asset_change(db, activo.id, "creation", None, "Activo creado")
     
     db.commit()
     
@@ -93,3 +122,10 @@ app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(floors.router)
 app.include_router(buildings.router)
+app.include_router(areas.router)
+app.include_router(reports.router)
+app.include_router(history.router)
+app.include_router(catalogs.router)
+app.include_router(glossary.router)
+
+# Trigger reload for schema update

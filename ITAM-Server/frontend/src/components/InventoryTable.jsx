@@ -1,21 +1,35 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Download, ChevronDown, Edit2, Circle } from 'lucide-react';
+import { Search, Download, ChevronDown, Edit2, Circle, Upload, Check, X } from 'lucide-react';
 import AssetIcon from './AssetIcon';
 import Pagination from './Pagination';
 import useRealTimeAssets from '../hooks/useRealTimeAssets';
 import { format } from 'date-fns';
+import axios from 'axios';
+// import InfrastructureModal from './InfrastructureModal'; // Removed as per request
+import AssetHistoryModal from './AssetHistoryModal';
+import { Settings, FileText, Clock } from 'lucide-react'; // Import Settings, FileText, Clock icons
 
 export default function InventoryTable() {
-    const { activos, loading, lastUpdate } = useRealTimeAssets();
+    const { activos, loading, lastUpdate, refresh } = useRealTimeAssets();
     const [searchTerm, setSearchTerm] = useState('');
     const [sortConfig, setSortConfig] = useState({ key: 'hostname', direction: 'asc' });
     const [filterStatus, setFilterStatus] = useState('all');
     const [filterLocation, setFilterLocation] = useState('all');
+    const [filterDominio, setFilterDominio] = useState('all');
+    const [filterArea, setFilterArea] = useState('all');
+
+    // const [isInfrastructureOpen, setIsInfrastructureOpen] = useState(false); // Removed
+    const [historyAsset, setHistoryAsset] = useState(null); // { id, hostname }
+
     const [currentPage, setCurrentPage] = useState(1);
+    const [uploading, setUploading] = useState(false);
+    const fileInputRef = useRef(null);
+
     const itemsPerPage = 10;
 
     const locations = ['all', ...new Set(activos.map(a => a.piso_id).filter(Boolean))];
+    const areas = ['all', ...new Set(activos.map(a => a.area).filter(a => a && a !== 'Unknown'))];
 
     const filteredActivos = activos
         .filter(pc => {
@@ -33,7 +47,16 @@ export default function InventoryTable() {
                 filterLocation === 'all' ? true :
                     pc.piso_id === parseInt(filterLocation);
 
-            return matchesSearch && matchesStatus && matchesLocation;
+            const matchesDominio =
+                filterDominio === 'all' ? true :
+                    filterDominio === 'si' ? pc.es_dominio :
+                        !pc.es_dominio;
+
+            const matchesArea =
+                filterArea === 'all' ? true :
+                    pc.area === filterArea;
+
+            return matchesSearch && matchesStatus && matchesLocation && matchesDominio && matchesArea;
         })
         .sort((a, b) => {
             const aVal = a[sortConfig.key] || '';
@@ -63,29 +86,37 @@ export default function InventoryTable() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
+    const handleFileUpload = async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        setUploading(true);
+        try {
+            await axios.post('http://localhost:8000/api/assets/upload', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+            alert('Carga masiva completada exitosamente');
+            refresh(); // Recargar datos
+        } catch (error) {
+            console.error('Error uploading file:', error);
+            alert('Error al cargar el archivo. Asegúrese de que sea un .xlsx válido.');
+        } finally {
+            setUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
     const exportToCSV = () => {
-        const headers = ['Status', 'Hostname', 'User/Dept', 'IP Address', 'MAC Address', 'Hardware', 'OS'];
-        const rows = filteredActivos.map(pc => [
-            pc.is_online ? 'Online' : 'Offline',
-            pc.hostname,
-            pc.usuario_detectado,
-            pc.ip_address,
-            pc.mac_address,
-            `${pc.marca || ''} ${pc.memoria_ram || ''} - ${pc.procesador || ''}`,
-            pc.sistema_operativo
-        ]);
+        window.location.href = 'http://localhost:8000/api/reports/excel';
+    };
 
-        const csv = [
-            headers.join(','),
-            ...rows.map(row => row.join(','))
-        ].join('\n');
-
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `inventario_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-        a.click();
+    const exportToPDF = () => {
+        window.location.href = 'http://localhost:8000/api/reports/pdf';
     };
 
     if (loading) {
@@ -123,7 +154,7 @@ export default function InventoryTable() {
 
                     {/* Filters and Actions */}
                     <div className="flex flex-wrap gap-3">
-                        <select
+                        <select // Filter Status
                             value={filterStatus}
                             onChange={(e) => setFilterStatus(e.target.value)}
                             className="px-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-red-500 focus:border-red-500 transition-all text-sm bg-white cursor-pointer"
@@ -133,7 +164,28 @@ export default function InventoryTable() {
                             <option value="offline">OFFLINE</option>
                         </select>
 
-                        <select
+                        <select // Filter Domain
+                            value={filterDominio}
+                            onChange={(e) => setFilterDominio(e.target.value)}
+                            className="px-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-red-500 focus:border-red-500 transition-all text-sm bg-white cursor-pointer"
+                        >
+                            <option value="all">DOMINIO: TODOS</option>
+                            <option value="si">EN DOMINIO</option>
+                            <option value="no">FUERA DE DOMINIO</option>
+                        </select>
+
+                        <select // Filter Area
+                            value={filterArea}
+                            onChange={(e) => setFilterArea(e.target.value)}
+                            className="px-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-red-500 focus:border-red-500 transition-all text-sm bg-white cursor-pointer max-w-[150px]"
+                        >
+                            <option value="all">ÁREA: TODAS</option>
+                            {areas.map(area => (
+                                <option key={area} value={area}>{area}</option>
+                            ))}
+                        </select>
+
+                        <select // Filter Location
                             value={filterLocation}
                             onChange={(e) => setFilterLocation(e.target.value)}
                             className="px-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-red-500 focus:border-red-500 transition-all text-sm bg-white cursor-pointer"
@@ -144,19 +196,51 @@ export default function InventoryTable() {
                             ))}
                         </select>
 
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileUpload}
+                            accept=".xlsx"
+                            className="hidden"
+                        />
+
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploading}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-md hover:bg-blue-100 transition-all text-sm font-medium disabled:opacity-50"
+                        >
+                            {uploading ? (
+                                <span className="animate-spin h-4 w-4 border-2 border-blue-600 rounded-full border-t-transparent"></span>
+                            ) : (
+                                <Upload size={16} />
+                            )}
+                            {uploading ? 'SUBIENDO...' : 'IMPORTAR EXCEL'}
+                        </button>
+
+                        {/* Button Removed as per request
+                        <button
+                            onClick={() => setIsInfrastructureOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-gray-700 to-gray-800 text-white rounded-md hover:shadow-lg hover:scale-105 transition-all text-sm font-medium"
+                        >
+                            <Settings size={16} />
+                            INFRAESTRUCTURA
+                        </button>
+                        */}
+
                         <button
                             onClick={exportToCSV}
                             className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-all text-sm font-medium"
                         >
                             <Download size={16} />
-                            EXPORTAR CSV
+                            EXCEL
                         </button>
 
                         <button
-                            className="flex items-center gap-2 px-4 py-2 bg-red-700 text-white rounded-md hover:bg-red-800 transition-all text-sm font-medium"
+                            onClick={exportToPDF}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 text-red-700 rounded-md hover:bg-red-100 transition-all text-sm font-medium"
                         >
-                            <span>+</span>
-                            NUEVO ACTIVO
+                            <FileText size={16} />
+                            PDF
                         </button>
                     </div>
                 </div>
@@ -170,32 +254,31 @@ export default function InventoryTable() {
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                 ESTADO
                             </th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                DOMINIO
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                onClick={() => handleSort('area')}>
+                                ÁREA
+                            </th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                                 onClick={() => handleSort('hostname')}>
                                 HOSTNAME
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                DIRECCIÓN IP
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                MAC ADDRESS
+                                IP / MAC
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                 USUARIO
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                MARCA/MODELO
+                                HARDWARE / RAM
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                 S.O.
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                PROCESADOR
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                RAM
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                ACCIONES
                             </th>
                         </tr>
                     </thead>
@@ -221,60 +304,70 @@ export default function InventoryTable() {
                                     </div>
                                 </td>
 
+                                {/* Dominio */}
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    {pc.es_dominio ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-800 border border-green-200">
+                                            <Check size={10} /> SI
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500 border border-gray-200">
+                                            <X size={10} /> NO
+                                        </span>
+                                    )}
+                                </td>
+
+                                {/* Area */}
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <div className="text-sm text-gray-700 font-medium">{pc.area || '-'}</div>
+                                </td>
+
                                 {/* Hostname */}
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm font-medium text-gray-900">{pc.hostname}</div>
+                                    <div className="text-sm font-bold text-gray-900">{pc.hostname}</div>
                                 </td>
 
-                                {/* IP Address */}
+                                {/* IP Address / MAC */}
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                    <code className="text-xs text-gray-700">{pc.ip_address}</code>
-                                </td>
-
-                                {/* MAC Address */}
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <code className="text-xs text-gray-600">{pc.mac_address || 'N/A'}</code>
+                                    <div className="flex flex-col">
+                                        <code className="text-xs text-gray-700 font-mono">{pc.ip_address}</code>
+                                        <code className="text-[10px] text-gray-500">{pc.mac_address || 'N/A'}</code>
+                                    </div>
                                 </td>
 
                                 {/* User */}
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div>
                                         <div className="text-sm font-medium text-gray-900">{pc.usuario_detectado || 'N/A'}</div>
-                                        <div className="text-xs text-gray-500 uppercase">INFORMÁTICA</div>
                                     </div>
                                 </td>
 
-                                {/* Brand/Model */}
+                                {/* Hardware / RAM */}
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div>
-                                        <div className="text-sm font-medium text-gray-900">{pc.marca || 'Dell'}</div>
-                                        <div className="text-xs text-gray-500">{pc.modelo || 'Latitude 5420'}</div>
+                                        <div className="text-xs font-medium text-gray-700">{pc.marca || 'Generico'}</div>
+                                        <div className="text-[10px] text-gray-500">{pc.procesador}</div>
+                                        {pc.memoria_ram && (
+                                            <div className="text-[10px] font-bold text-blue-600 mt-0.5">RAM: {pc.memoria_ram}</div>
+                                        )}
                                     </div>
                                 </td>
 
                                 {/* OS */}
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                        {pc.sistema_operativo || 'WIN 11 PRO'}
+                                    <span className="inline-flex items-center px-2 py-1 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                                        {pc.sistema_operativo || 'WIN'}
                                     </span>
-                                </td>
-
-                                {/* Processor */}
-                                <td className="px-6 py-4">
-                                    <div className="text-xs text-gray-700 max-w-[150px] truncate" title={pc.procesador}>
-                                        {pc.procesador || 'i7-1185G7'}
-                                    </div>
-                                </td>
-
-                                {/* RAM */}
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <div className="text-sm text-gray-900">{pc.memoria_ram || '16 GB'}</div>
                                 </td>
 
                                 {/* Actions */}
                                 <td className="px-6 py-4 whitespace-nowrap text-right">
-                                    <button className="text-gray-400 hover:text-gray-600 transition-colors">
-                                        <Edit2 size={16} />
+                                    <button
+                                        onClick={() => setHistoryAsset({ id: pc.id, hostname: pc.hostname })}
+                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                        title="Ver historial"
+                                    >
+                                        <Clock size={16} />
                                     </button>
                                 </td>
                             </motion.tr>
@@ -308,6 +401,19 @@ export default function InventoryTable() {
                     </div>
                 </div>
             )}
+            {/* Removed InfrastructureModal
+            <InfrastructureModal
+                isOpen={isInfrastructureOpen}
+                onClose={() => setIsInfrastructureOpen(false)}
+            />
+            */}
+            {/* Modal de Historial */}
+            <AssetHistoryModal
+                isOpen={!!historyAsset}
+                onClose={() => setHistoryAsset(null)}
+                assetId={historyAsset?.id}
+                hostname={historyAsset?.hostname}
+            />
         </motion.div>
     );
 }

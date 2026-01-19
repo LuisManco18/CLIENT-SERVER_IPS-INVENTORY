@@ -9,3 +9,6 @@ bcrypt==3.2.0
 python-multipart
 Pillow
 python-jose[cryptography]
+pandas
+openpyxl
+reportlab
