@@ -7,12 +7,12 @@ from sqlalchemy.exc import ProgrammingError
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from database import engine, SessionLocal, Base
-from models import assets, history, models  # Ensure all models are imported
+from models import assets, users, history, locations, glossary
 from init_db import load_initial_catalogs, load_initial_buildings
 
 def fix_database():
     db = SessionLocal()
-    print("🔧 Iniciando reparación de base de datos...")
+    print(">> Iniciando reparacion de base de datos...")
 
     # 1. Agregar columna AREA a la tabla ACTIVOS si no existe
     try:

@@ -1,7 +1,7 @@
 import time
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from routers import dashboard, floors, buildings, auth, areas, reports, history, glossary, catalogs
+from routers import dashboard, floors, buildings, auth, areas, reports, history as history_router, glossary as glossary_router, catalogs
 from utils.history import log_asset_change
 from utils.parser import parse_hostname_logic
 
@@ -19,6 +19,14 @@ from schemas import asset_schema
 # --- CREACIÓN AUTOMÁTICA DE TABLAS ---
 # Esperamos un poco a que la BD inicie (parche simple para Docker)
 time.sleep(3) 
+
+# --- REPARACIÓN AUTOMÁTICA DE DB (Added to fix missing columns) ---
+try:
+    from fix_db import fix_database
+    fix_database()
+except Exception as e:
+    print(f"Warning: Could not run DB repair: {e}")
+
 Base.metadata.create_all(bind=engine)
 
 # --- INICIALIZAR DATOS POR DEFECTO ---
@@ -124,8 +132,8 @@ app.include_router(floors.router)
 app.include_router(buildings.router)
 app.include_router(areas.router)
 app.include_router(reports.router)
-app.include_router(history.router)
+app.include_router(history_router.router)
 app.include_router(catalogs.router)
-app.include_router(glossary.router)
+app.include_router(glossary_router.router)
 
 # Trigger reload for schema update

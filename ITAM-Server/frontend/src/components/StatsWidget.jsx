@@ -22,7 +22,11 @@ export default function StatsWidget() {
     const fetchStats = async () => {
         try {
             const response = await axios.get('http://localhost:8000/api/assets/stats');
-            setStats(response.data);
+            if (response.data && typeof response.data === 'object') {
+                setStats(response.data);
+            } else {
+                console.warn('Received invalid stats data:', response.data);
+            }
             setLoading(false);
         } catch (error) {
             console.error('Error fetching stats:', error);
@@ -33,7 +37,7 @@ export default function StatsWidget() {
     const statCards = [
         {
             title: 'TOTAL ACTIVOS',
-            value: stats.total.toLocaleString(),
+            value: (stats.total || 0).toLocaleString(),
             icon: Monitor,
             color: '#B91C1C',
             bgColor: '#FEE2E2',
@@ -41,7 +45,7 @@ export default function StatsWidget() {
         },
         {
             title: 'OPERATIVOS',
-            value: stats.online.toLocaleString(),
+            value: (stats.online || 0).toLocaleString(),
             icon: CheckCircle,
             color: '#059669',
             bgColor: '#D1FAE5',
@@ -49,7 +53,7 @@ export default function StatsWidget() {
         },
         {
             title: 'NO DISPONIBLES',
-            value: stats.offline.toLocaleString(),
+            value: (stats.offline || 0).toLocaleString(),
             icon: XCircle,
             color: '#6B7280',
             bgColor: '#F3F4F6',
@@ -57,7 +61,7 @@ export default function StatsWidget() {
         },
         {
             title: 'ALERTAS CRÍTICAS',
-            value: stats.alertas.toLocaleString(),
+            value: (stats.alertas || 0).toLocaleString(),
             icon: AlertTriangle,
             color: '#F59E0B',
             bgColor: '#FEF3C7',

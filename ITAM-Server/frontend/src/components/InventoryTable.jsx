@@ -28,10 +28,13 @@ export default function InventoryTable() {
 
     const itemsPerPage = 10;
 
-    const locations = ['all', ...new Set(activos.map(a => a.piso_id).filter(Boolean))];
-    const areas = ['all', ...new Set(activos.map(a => a.area).filter(a => a && a !== 'Unknown'))];
+    // Defensive check: Ensure activos is an array
+    const safeActivos = Array.isArray(activos) ? activos : [];
 
-    const filteredActivos = activos
+    const locations = ['all', ...new Set(safeActivos.map(a => a.piso_id).filter(Boolean))];
+    const areas = ['all', ...new Set(safeActivos.map(a => a.area).filter(a => a && a !== 'Unknown'))];
+
+    const filteredActivos = safeActivos
         .filter(pc => {
             const matchesSearch =
                 pc.hostname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
