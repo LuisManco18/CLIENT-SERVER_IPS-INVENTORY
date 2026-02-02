@@ -1,0 +1,3 @@
+# Archivos bloqueados por antivirus / scripts locales
+create_installer_package.ps1
+create_package.ps1
