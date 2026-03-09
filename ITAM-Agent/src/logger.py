@@ -3,12 +3,20 @@ import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
+
+def _get_base_dir() -> Path:
+    """Detecta si corre como .exe (PyInstaller) o como script .py"""
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent.parent
+
+
 def setup_logger(name='ITAM-Agent', log_file='itam_agent.log', level=logging.INFO):
     """
     Configura el sistema de logging con rotación de archivos
     """
-    # Crear directorio de logs si no existe
-    log_dir = Path('logs')
+    # Crear directorio de logs junto al ejecutable
+    log_dir = _get_base_dir() / 'logs'
     log_dir.mkdir(exist_ok=True)
     log_path = log_dir / log_file
     

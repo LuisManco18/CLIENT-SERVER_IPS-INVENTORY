@@ -1,7 +1,21 @@
 import os
+import sys
 import json
 from pathlib import Path
 from typing import Optional
+
+
+def _get_base_dir() -> Path:
+    """
+    Detecta si corre como .exe empaquetado (PyInstaller) o como script .py
+    Retorna el directorio base donde buscar config.json y logs/
+    """
+    if getattr(sys, 'frozen', False):
+        # Ejecutando como .exe empaquetado por PyInstaller
+        return Path(sys.executable).parent
+    # Ejecutando como script .py → subir un nivel desde src/
+    return Path(__file__).parent.parent
+
 
 class ClientSettings:
     """
@@ -11,7 +25,7 @@ class ClientSettings:
     
     def __init__(self):
         # Cargar desde archivo de configuración si existe
-        self.config_file = Path('config.json')
+        self.config_file = _get_base_dir() / 'config.json'
         config_data = self._load_config_file()
         
         # Configuración del servidor
@@ -28,7 +42,7 @@ class ClientSettings:
         self.RETRY_DELAY = int(os.getenv('ITAM_RETRY_DELAY', config_data.get('retry_delay', 5)))
         
         # Modo silencioso (sin ventanas)
-        self.SILENT_MODE = os.getenv('ITAM_SILENT_MODE', config_data.get('silent_mode', 'true')).lower() == 'true'
+        self.SILENT_MODE = str(os.getenv('ITAM_SILENT_MODE', config_data.get('silent_mode', 'true'))).lower() == 'true'
         
         # Validar configuración
         self._validate()

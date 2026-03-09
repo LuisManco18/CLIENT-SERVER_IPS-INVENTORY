@@ -103,16 +103,52 @@ Los logs se guardan en la carpeta `logs/`:
 - Rotación automática cada 5 MB
 - Se mantienen 3 archivos de backup
 
-## Compilar a .exe
+## Compilar a .exe (Ejecutable Standalone)
 
-Para distribuir el agente como ejecutable:
+Para distribuir el agente como ejecutable autónomo (**no requiere Python** en las PCs destino):
+
+### 1. Instalar PyInstaller (solo una vez, en tu máquina de desarrollo)
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --noconsole src/main.py
 ```
 
-El ejecutable se generará en `dist/main.exe`.
+### 2. Compilar
+
+```bash
+python build_exe.py
+```
+
+Esto genera en la carpeta `dist/`:
+- `ITAMAgent.exe` — El ejecutable del agente
+- `config.json` — Archivo de configuración editable
+
+### 3. Desplegar en otras PCs
+
+1. **Copia** `ITAMAgent.exe` y `config.json` a la PC destino
+2. **Edita** `config.json` y cambia `api_url` a la IP de tu servidor:
+   ```json
+   {
+     "api_url": "http://192.168.1.100:8000"
+   }
+   ```
+3. **Ejecuta** `ITAMAgent.exe` como **Administrador**
+
+> **Nota:** Los logs se guardarán en una carpeta `logs/` junto al ejecutable.
+
+## Cambiar la IP del Servidor
+
+Para apuntar el agente a un servidor diferente, edita el archivo `config.json` que está junto al ejecutable:
+
+```json
+{
+  "api_url": "http://NUEVA_IP:8000",
+  "api_token": "sk_live_token_maestro_para_agentes",
+  "report_interval": 300
+}
+```
+
+**No es necesario recompilar el .exe.** Solo cambia la IP y reinicia el agente.
 
 ## Arquitectura
 
