@@ -1,6 +1,7 @@
 """
 Router para comandos remotos a los agentes ITAM
 Permite apagar, reiniciar y cancelar shutdown de PCs
+Registra cada comando en la tabla de notificaciones
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -10,12 +11,13 @@ import asyncio
 
 from database import get_db
 from models import assets
+from models.notifications import Notificacion
+from models.users import UsuarioAdmin
 from dependencies import get_current_user
 
 router = APIRouter(
     prefix="/api/remote",
     tags=["Remote Commands"],
-    dependencies=[Depends(get_current_user)]
 )
 
 # Configuración
@@ -46,8 +48,29 @@ async def send_command_to_agent(ip_address: str, endpoint: str, timeout: int = A
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
+def _log_notificacion(db: Session, tipo: str, activo, user: UsuarioAdmin, exitoso: bool, mensaje: str):
+    """Registra un comando remoto en la tabla de notificaciones"""
+    notif = Notificacion(
+        tipo=tipo,
+        activo_id=activo.id,
+        activo_hostname=activo.hostname,
+        activo_ip=activo.ip_address,
+        usuario_id=user.id,
+        usuario_username=user.username,
+        exitoso=exitoso,
+        mensaje=mensaje,
+    )
+    db.add(notif)
+    db.commit()
+
+
 @router.post("/{asset_id}/shutdown", response_model=CommandResponse)
-async def shutdown_asset(asset_id: int, db: Session = Depends(get_db)):
+async def shutdown_asset(
+    asset_id: int,
+    db: Session = Depends(get_db),
+    current_user: UsuarioAdmin = Depends(get_current_user)
+):
     """
     Envía comando de apagado a una PC
     El usuario tendrá 60 segundos para cancelar antes del apagado
@@ -60,7 +83,6 @@ async def shutdown_asset(asset_id: int, db: Session = Depends(get_db)):
     if not activo.ip_address or activo.ip_address == "0.0.0.0":
         raise HTTPException(status_code=400, detail="El activo no tiene IP válida")
     
-    # Verificar que esté online
     if not activo.is_online():
         raise HTTPException(status_code=400, detail="El activo está offline. No se puede enviar comando.")
     
@@ -70,19 +92,26 @@ async def shutdown_asset(asset_id: int, db: Session = Depends(get_db)):
     )
     
     if result["success"]:
+        msg = f"Comando de apagado enviado. La PC se apagará en {SHUTDOWN_DELAY} segundos."
+        _log_notificacion(db, "SHUTDOWN", activo, current_user, True, msg)
         return CommandResponse(
             success=True,
-            message=f"Comando de apagado enviado. La PC se apagará en {SHUTDOWN_DELAY} segundos.",
+            message=msg,
             asset_ip=activo.ip_address
         )
     else:
+        _log_notificacion(db, "SHUTDOWN", activo, current_user, False, result['error'])
         raise HTTPException(
             status_code=503,
             detail=f"Error al enviar comando: {result['error']}"
         )
 
 @router.post("/{asset_id}/restart", response_model=CommandResponse)
-async def restart_asset(asset_id: int, db: Session = Depends(get_db)):
+async def restart_asset(
+    asset_id: int,
+    db: Session = Depends(get_db),
+    current_user: UsuarioAdmin = Depends(get_current_user)
+):
     """
     Envía comando de reinicio a una PC
     El usuario tendrá 60 segundos para cancelar antes del reinicio
@@ -104,19 +133,26 @@ async def restart_asset(asset_id: int, db: Session = Depends(get_db)):
     )
     
     if result["success"]:
+        msg = f"Comando de reinicio enviado. La PC se reiniciará en {SHUTDOWN_DELAY} segundos."
+        _log_notificacion(db, "RESTART", activo, current_user, True, msg)
         return CommandResponse(
             success=True,
-            message=f"Comando de reinicio enviado. La PC se reiniciará en {SHUTDOWN_DELAY} segundos.",
+            message=msg,
             asset_ip=activo.ip_address
         )
     else:
+        _log_notificacion(db, "RESTART", activo, current_user, False, result['error'])
         raise HTTPException(
             status_code=503,
             detail=f"Error al enviar comando: {result['error']}"
         )
 
 @router.post("/{asset_id}/cancel", response_model=CommandResponse)
-async def cancel_shutdown(asset_id: int, db: Session = Depends(get_db)):
+async def cancel_shutdown(
+    asset_id: int,
+    db: Session = Depends(get_db),
+    current_user: UsuarioAdmin = Depends(get_current_user)
+):
     """
     Cancela un apagado o reinicio pendiente
     """
@@ -131,12 +167,15 @@ async def cancel_shutdown(asset_id: int, db: Session = Depends(get_db)):
     result = await send_command_to_agent(activo.ip_address, "/execute/cancel")
     
     if result["success"]:
+        msg = "Apagado/reinicio cancelado exitosamente."
+        _log_notificacion(db, "CANCEL", activo, current_user, True, msg)
         return CommandResponse(
             success=True,
-            message="Apagado/reinicio cancelado exitosamente.",
+            message=msg,
             asset_ip=activo.ip_address
         )
     else:
+        _log_notificacion(db, "CANCEL", activo, current_user, False, result['error'])
         raise HTTPException(
             status_code=503,
             detail=f"Error al cancelar: {result['error']}"

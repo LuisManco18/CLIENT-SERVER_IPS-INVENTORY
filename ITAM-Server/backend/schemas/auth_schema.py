@@ -25,6 +25,15 @@ class TokenResponse(BaseModel):
     nombre_completo: Optional[str] = None
     es_superadmin: bool = False
     permisos: List[PermisoLogin] = []
+    # Permisos por sección
+    perm_dashboard: bool = True
+    perm_inventario: bool = True
+    perm_mapa: bool = True
+    perm_mapa_editar: bool = True
+    perm_edificios: bool = True
+    perm_impresiones: bool = True
+    perm_usuarios: bool = False
+    perm_notificaciones: bool = True
 
 class UserResponse(BaseModel):
     """Schema para información de usuario"""
@@ -36,6 +45,15 @@ class UserResponse(BaseModel):
     es_admin: bool
     es_superadmin: bool = False
     ultimo_login: Optional[datetime] = None
+    # Permisos por sección
+    perm_dashboard: bool = True
+    perm_inventario: bool = True
+    perm_mapa: bool = True
+    perm_mapa_editar: bool = True
+    perm_edificios: bool = True
+    perm_impresiones: bool = True
+    perm_usuarios: bool = False
+    perm_notificaciones: bool = True
 
     class Config:
         from_attributes = True

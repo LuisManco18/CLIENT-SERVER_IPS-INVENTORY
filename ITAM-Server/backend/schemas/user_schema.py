@@ -29,6 +29,15 @@ class UsuarioCreate(BaseModel):
     es_admin: bool = True
     es_superadmin: bool = False
     permisos: List[PermisoBase] = []
+    # Permisos por sección
+    perm_dashboard: bool = True
+    perm_inventario: bool = True
+    perm_mapa: bool = True
+    perm_mapa_editar: bool = True
+    perm_edificios: bool = True
+    perm_impresiones: bool = True
+    perm_usuarios: bool = False
+    perm_notificaciones: bool = True
 
     @field_validator('username')
     @classmethod
@@ -51,6 +60,15 @@ class UsuarioUpdate(BaseModel):
     password: Optional[str] = None  # Solo si se quiere cambiar
     es_activo: Optional[bool] = None
     es_admin: Optional[bool] = None
+    # Permisos por sección
+    perm_dashboard: Optional[bool] = None
+    perm_inventario: Optional[bool] = None
+    perm_mapa: Optional[bool] = None
+    perm_mapa_editar: Optional[bool] = None
+    perm_edificios: Optional[bool] = None
+    perm_impresiones: Optional[bool] = None
+    perm_usuarios: Optional[bool] = None
+    perm_notificaciones: Optional[bool] = None
 
 class PermisoUpdate(BaseModel):
     """Schema para actualizar permisos de usuario"""
@@ -68,6 +86,15 @@ class UsuarioResponse(BaseModel):
     fecha_creacion: Optional[datetime] = None
     ultimo_login: Optional[datetime] = None
     permisos: List[PermisoResponse] = []
+    # Permisos por sección
+    perm_dashboard: bool = True
+    perm_inventario: bool = True
+    perm_mapa: bool = True
+    perm_mapa_editar: bool = True
+    perm_edificios: bool = True
+    perm_impresiones: bool = True
+    perm_usuarios: bool = False
+    perm_notificaciones: bool = True
 
     class Config:
         from_attributes = True
@@ -81,6 +108,15 @@ class UsuarioListItem(BaseModel):
     es_superadmin: bool
     permisos_count: int = 0
     ultimo_login: Optional[datetime] = None
+    # Permisos por sección
+    perm_dashboard: bool = True
+    perm_inventario: bool = True
+    perm_mapa: bool = True
+    perm_mapa_editar: bool = True
+    perm_edificios: bool = True
+    perm_impresiones: bool = True
+    perm_usuarios: bool = False
+    perm_notificaciones: bool = True
 
     class Config:
         from_attributes = True

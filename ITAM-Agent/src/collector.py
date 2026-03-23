@@ -76,11 +76,23 @@ class SystemCollector:
             # Usuario (limpiar dominio si existe)
             full_user = sys_info.UserName if sys_info.UserName else "No User"
             
+            # Obtener nombre completo del usuario desde Win32_UserAccount
+            usuario_nombre_completo = full_user
+            try:
+                username_only = full_user.split("\\")[-1] if "\\" in full_user else full_user
+                if username_only and username_only != "No User":
+                    user_accounts = c.Win32_UserAccount(Name=username_only)
+                    if user_accounts and user_accounts[0].FullName:
+                        usuario_nombre_completo = user_accounts[0].FullName.strip()
+            except Exception as e:
+                logger.warning(f"No se pudo obtener nombre completo del usuario: {e}")
+            
             return {
                 "marca": sys_info.Manufacturer.strip(),
                 "modelo": sys_info.Model.strip(),
                 "memoria_ram": ram_gb,
-                "usuario": full_user
+                "usuario": full_user,
+                "usuario_nombre_completo": usuario_nombre_completo
             }
         except Exception as e:
             logger.warning(f"Error obteniendo info del sistema: {e}")
@@ -88,7 +100,8 @@ class SystemCollector:
                 "marca": "Unknown",
                 "modelo": "Unknown",
                 "memoria_ram": "Unknown",
-                "usuario": "No User"
+                "usuario": "No User",
+                "usuario_nombre_completo": "No User"
             }
     
     def _get_os_info(self, c) -> Dict:
@@ -240,8 +253,8 @@ class SystemCollector:
         """Valida que los datos recolectados sean correctos"""
         required_fields = [
             'serial_number', 'hostname', 'ip_address', 'mac_address',
-            'usuario', 'marca', 'modelo', 'sistema_operativo',
-            'procesador', 'memoria_ram'
+            'usuario', 'usuario_nombre_completo', 'marca', 'modelo',
+            'sistema_operativo', 'procesador', 'memoria_ram'
         ]
         
         for field in required_fields:

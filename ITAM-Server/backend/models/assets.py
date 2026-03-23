@@ -25,6 +25,7 @@ class Activo(Base):
     
     # Datos Administrativos
     usuario_detectado = Column(String)
+    usuario_nombre_completo = Column(String, nullable=True)  # Nombre completo del usuario
     tipo_asignacion = Column(String, default="PLANILLA") # PRACTICANTE, VOLUNTARIO...
     
     # Visualización

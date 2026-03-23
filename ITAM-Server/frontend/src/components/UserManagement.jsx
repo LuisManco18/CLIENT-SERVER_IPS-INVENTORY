@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Users, UserPlus, Edit, Trash2, X, Save,
     Shield, ShieldCheck, Building2, Layers,
-    Eye, EyeOff, Check, AlertCircle
+    Eye, EyeOff, Check, AlertCircle,
+    LayoutDashboard, Server, Map as MapIcon, Printer, Bell
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -26,7 +27,15 @@ export default function UserManagement() {
         email: '',
         es_activo: true,
         es_superadmin: false,
-        permisos: []
+        permisos: [],
+        perm_dashboard: true,
+        perm_inventario: true,
+        perm_mapa: true,
+        perm_mapa_editar: true,
+        perm_edificios: true,
+        perm_impresiones: true,
+        perm_usuarios: false,
+        perm_notificaciones: true,
     });
 
     const getAuthHeaders = () => ({
@@ -71,7 +80,15 @@ export default function UserManagement() {
                         email: formData.email,
                         nombre_completo: formData.nombre_completo,
                         es_activo: formData.es_activo,
-                        password: formData.password || undefined
+                        password: formData.password || undefined,
+                        perm_dashboard: formData.perm_dashboard,
+                        perm_inventario: formData.perm_inventario,
+                        perm_mapa: formData.perm_mapa,
+                        perm_mapa_editar: formData.perm_mapa_editar,
+                        perm_edificios: formData.perm_edificios,
+                        perm_impresiones: formData.perm_impresiones,
+                        perm_usuarios: formData.perm_usuarios,
+                        perm_notificaciones: formData.perm_notificaciones,
                     },
                     getAuthHeaders()
                 );
@@ -102,7 +119,15 @@ export default function UserManagement() {
                 resetForm();
             }, 1500);
         } catch (err) {
-            setError(err.response?.data?.detail || 'Error al guardar usuario');
+            const detail = err.response?.data?.detail;
+            if (Array.isArray(detail)) {
+                // Pydantic validation errors come as array of objects with {msg, loc, ...}
+                setError(detail.map(d => d.msg || JSON.stringify(d)).join(', '));
+            } else if (typeof detail === 'object' && detail !== null) {
+                setError(JSON.stringify(detail));
+            } else {
+                setError(detail || 'Error al guardar usuario');
+            }
         }
     };
 
@@ -125,7 +150,15 @@ export default function UserManagement() {
                 permisos: userData.permisos.map(p => ({
                     edificio_id: p.edificio_id,
                     piso_id: p.piso_id
-                }))
+                })),
+                perm_dashboard: userData.perm_dashboard ?? true,
+                perm_inventario: userData.perm_inventario ?? true,
+                perm_mapa: userData.perm_mapa ?? true,
+                perm_mapa_editar: userData.perm_mapa_editar ?? true,
+                perm_edificios: userData.perm_edificios ?? true,
+                perm_impresiones: userData.perm_impresiones ?? true,
+                perm_usuarios: userData.perm_usuarios ?? false,
+                perm_notificaciones: userData.perm_notificaciones ?? true,
             });
             setShowModal(true);
         } catch (err) {
@@ -153,7 +186,15 @@ export default function UserManagement() {
             email: '',
             es_activo: true,
             es_superadmin: false,
-            permisos: []
+            permisos: [],
+            perm_dashboard: true,
+            perm_inventario: true,
+            perm_mapa: true,
+            perm_mapa_editar: true,
+            perm_edificios: true,
+            perm_impresiones: true,
+            perm_usuarios: false,
+            perm_notificaciones: true,
         });
         setEditingUser(null);
         setError('');
@@ -479,12 +520,71 @@ export default function UserManagement() {
                                     )}
                                 </div>
 
-                                {/* Selector de Permisos */}
+                                {/* Permisos por Sección */}
+                                {!formData.es_superadmin && !editingUser?.es_superadmin && (
+                                    <div className="border-t pt-6">
+                                        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                            <Shield size={20} className="text-red-700" />
+                                            Secciones Permitidas
+                                        </h3>
+                                        <p className="text-sm text-gray-500 mb-4">
+                                            Selecciona qué secciones puede ver y usar este usuario
+                                        </p>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {[
+                                                { key: 'perm_dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} />, color: 'red' },
+                                                { key: 'perm_inventario', label: 'Inventario', icon: <Server size={16} />, color: 'blue' },
+                                                { key: 'perm_mapa', label: 'Mapa', icon: <MapIcon size={16} />, color: 'green' },
+                                                { key: 'perm_edificios', label: 'Edificios', icon: <Building2 size={16} />, color: 'purple' },
+                                                { key: 'perm_impresiones', label: 'Impresiones', icon: <Printer size={16} />, color: 'orange' },
+                                                { key: 'perm_notificaciones', label: 'Notificaciones', icon: <Bell size={16} />, color: 'teal' },
+                                                { key: 'perm_usuarios', label: 'Gestión Usuarios', icon: <Users size={16} />, color: 'amber' },
+                                            ].map(({ key, label, icon, color }) => (
+                                                <label
+                                                    key={key}
+                                                    className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                                                        formData[key]
+                                                            ? `border-${color}-300 bg-${color}-50`
+                                                            : 'border-gray-200 bg-white hover:border-gray-300'
+                                                    }`}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData[key]}
+                                                        onChange={e => setFormData({ ...formData, [key]: e.target.checked })}
+                                                        className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                                    />
+                                                    <span className="text-gray-500">{icon}</span>
+                                                    <span className="font-medium text-gray-700">{label}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+
+                                        {/* Sub-permiso: Mapa solo lectura */}
+                                        {formData.perm_mapa && (
+                                            <div className="mt-3 ml-4 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                                                <label className="flex items-center gap-3 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={formData.perm_mapa_editar}
+                                                        onChange={e => setFormData({ ...formData, perm_mapa_editar: e.target.checked })}
+                                                        className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                                                    />
+                                                    <span className="font-medium text-gray-700">Editar Mapa</span>
+                                                    <span className="text-xs text-gray-400">(mover PCs en el mapa)</span>
+                                                </label>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Selector de Permisos por Edificio */}
                                 {!formData.es_superadmin && !editingUser?.es_superadmin && (
                                     <div className="border-t pt-6">
                                         <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                                             <Building2 size={20} className="text-red-700" />
-                                            Permisos de Acceso
+                                            Permisos de Edificios
                                         </h3>
                                         <p className="text-sm text-gray-500 mb-4">
                                             Selecciona los edificios y pisos que este usuario podrá ver

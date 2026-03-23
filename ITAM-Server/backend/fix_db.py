@@ -124,6 +124,52 @@ def fix_database():
         print(f"Error creating index: {e}")
         db.rollback()
 
+    # 9. Agregar columna usuario_nombre_completo a la tabla activos
+    try:
+        print("Checking 'usuario_nombre_completo' column in 'activos'...")
+        db.execute(text("ALTER TABLE activos ADD COLUMN IF NOT EXISTS usuario_nombre_completo VARCHAR"))
+        db.commit()
+        print("✓ Columna 'usuario_nombre_completo' verificada/agregada.")
+    except Exception as e:
+        print(f"Error checking usuario_nombre_completo column: {e}")
+        db.rollback()
+
+    # 10. Agregar columnas de permisos por sección a admins
+    perm_columns = [
+        ("perm_dashboard", "BOOLEAN", "TRUE"),
+        ("perm_inventario", "BOOLEAN", "TRUE"),
+        ("perm_mapa", "BOOLEAN", "TRUE"),
+        ("perm_mapa_editar", "BOOLEAN", "TRUE"),
+        ("perm_edificios", "BOOLEAN", "TRUE"),
+        ("perm_impresiones", "BOOLEAN", "TRUE"),
+        ("perm_usuarios", "BOOLEAN", "FALSE"),
+        ("perm_notificaciones", "BOOLEAN", "TRUE"),
+    ]
+    print("Checking permission columns in 'admins'...")
+    for col_name, col_type, default in perm_columns:
+        try:
+            db.execute(text(f"ALTER TABLE admins ADD COLUMN IF NOT EXISTS {col_name} {col_type} DEFAULT {default}"))
+            db.commit()
+        except Exception as e:
+            print(f"  Note ({col_name}): {e}")
+            db.rollback()
+    print("✓ Columnas de permisos verificadas/agregadas.")
+
+    # 10.1 Superadmins tienen todos los permisos
+    try:
+        db.execute(text("""
+            UPDATE admins SET 
+                perm_dashboard = TRUE, perm_inventario = TRUE, perm_mapa = TRUE,
+                perm_mapa_editar = TRUE, perm_edificios = TRUE, perm_impresiones = TRUE,
+                perm_usuarios = TRUE, perm_notificaciones = TRUE
+            WHERE es_superadmin = TRUE
+        """))
+        db.commit()
+        print("✓ Permisos de superadmins actualizados.")
+    except Exception as e:
+        print(f"Error updating superadmin perms: {e}")
+        db.rollback()
+
     db.close()
     print("\n✅ Reparación completada. Reinicia el backend.")
 

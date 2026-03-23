@@ -18,6 +18,7 @@ class AssetReportCreate(BaseModel):
     ip_address: str
     mac_address: str
     usuario: str
+    usuario_nombre_completo: Optional[str] = None
     
     # Hardware
     marca: str

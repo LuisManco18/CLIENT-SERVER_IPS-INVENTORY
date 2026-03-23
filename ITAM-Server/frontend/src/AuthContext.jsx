@@ -17,6 +17,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('nombre_completo');
         localStorage.removeItem('es_superadmin');
         localStorage.removeItem('permisos');
+        localStorage.removeItem('secciones');
         setUser(null);
         window.location.href = '/'; // Forzar recarga limpia
     }, []);
@@ -37,12 +38,23 @@ export const AuthProvider = ({ children }) => {
                     const fullName = localStorage.getItem('nombre_completo') || response.data.nombre_completo;
                     const esSuperadmin = response.data.es_superadmin;
                     const permisos = response.data.permisos || [];
+                    
+                    // Cargar permisos de sección desde localStorage o defaults
+                    const savedSecciones = localStorage.getItem('secciones');
+                    const secciones = savedSecciones ? JSON.parse(savedSecciones) : {
+                        dashboard: true, inventario: true, mapa: true,
+                        mapa_editar: true, edificios: true, impresiones: true, usuarios: false
+                    };
 
                     setUser({
                         username,
                         nombre_completo: fullName,
                         es_superadmin: esSuperadmin,
-                        permisos
+                        permisos,
+                        secciones: esSuperadmin ? {
+                            dashboard: true, inventario: true, mapa: true,
+                            mapa_editar: true, edificios: true, impresiones: true, usuarios: true
+                        } : secciones
                     });
                 } catch (error) {
                     console.error("Sesión inválida o expirada", error);
@@ -89,12 +101,28 @@ export const AuthProvider = ({ children }) => {
         // Guardar permisos en localStorage
         localStorage.setItem('es_superadmin', userData.es_superadmin ? 'true' : 'false');
         localStorage.setItem('permisos', JSON.stringify(userData.permisos || []));
+        
+        const secciones = userData.es_superadmin ? {
+            dashboard: true, inventario: true, mapa: true,
+            mapa_editar: true, edificios: true, impresiones: true, usuarios: true, notificaciones: true
+        } : {
+            dashboard: userData.perm_dashboard ?? true,
+            inventario: userData.perm_inventario ?? true,
+            mapa: userData.perm_mapa ?? true,
+            mapa_editar: userData.perm_mapa_editar ?? true,
+            edificios: userData.perm_edificios ?? true,
+            impresiones: userData.perm_impresiones ?? true,
+            usuarios: userData.perm_usuarios ?? false,
+            notificaciones: userData.perm_notificaciones ?? true,
+        };
+        localStorage.setItem('secciones', JSON.stringify(secciones));
 
         setUser({
             username: userData.username,
             nombre_completo: userData.nombre_completo,
             es_superadmin: userData.es_superadmin || false,
-            permisos: userData.permisos || []
+            permisos: userData.permisos || [],
+            secciones
         });
     };
 
@@ -106,6 +134,13 @@ export const AuthProvider = ({ children }) => {
         return user.permisos.some(p =>
             p.edificio_id === edificioId
         );
+    }, [user]);
+
+    // Helper: verificar si puede acceder a una sección
+    const canAccess = useCallback((section) => {
+        if (!user) return false;
+        if (user.es_superadmin) return true;
+        return user.secciones?.[section] ?? false;
     }, [user]);
 
     // Helper para verificar si puede ver un piso específico
@@ -199,6 +234,7 @@ export const AuthProvider = ({ children }) => {
             user,
             login,
             logout,
+            canAccess,
             canViewBuilding,
             canViewFloor,
             filterBuildingsByPermission,

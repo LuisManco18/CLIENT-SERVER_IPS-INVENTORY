@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Building2,
@@ -23,11 +23,12 @@ import InfrastructurePage from "./pages/InfrastructurePage";
 import MapView from "./components/MapView";
 import UserManagement from "./components/UserManagement";
 import PrinterPanel from "./components/PrinterPanel";
+import NotificationsPanel from "./components/NotificationsPanel";
 import { AuthProvider, useAuth } from "./AuthContext";
 
 // Componente Header interno para acceder al contexto de Auth
 const AppHeader = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, canAccess } = useAuth();
   const location = useLocation();
 
   // Breadcrumbs mapping
@@ -39,13 +40,14 @@ const AppHeader = () => {
       case '/floors': return 'Gestión de Pisos';
       case '/users': return 'Gestión de Usuarios';
       case '/printers': return 'Ranking de Impresiones';
+      case '/notifications': return 'Notificaciones y Eventos';
       default: return 'ITAM Platform';
     }
   };
 
   return (
     <header className="bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-lg z-20 sticky top-0 border-b border-red-900/30">
-      <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+      <div className="w-full max-w-[1920px] mx-auto px-4 lg:px-8 h-20 flex items-center justify-between">
         {/* Logo Area */}
         <div className="flex items-center gap-4">
           <img
@@ -70,12 +72,13 @@ const AppHeader = () => {
 
         {/* Navigation */}
         <nav className="flex items-center gap-1 bg-white/5 p-1 rounded-full border border-white/10 backdrop-blur-sm">
-          <NavLink to="/" icon={<LayoutDashboard size={18} />} text="Dashboard" active={location.pathname === '/'} />
-          <NavLink to="/inventory" icon={<Server size={18} />} text="Inventario" active={location.pathname === '/inventory'} />
-          <NavLink to="/map" icon={<Map size={18} />} text="Mapa" active={location.pathname === '/map'} />
-          <NavLink to="/floors" icon={<Building2 size={18} />} text="Edificios" active={location.pathname === '/floors'} />
-          <NavLink to="/printers" icon={<Printer size={18} />} text="Impresiones" active={location.pathname === '/printers'} />
-          {user?.es_superadmin && (
+          {canAccess('dashboard') && <NavLink to="/" icon={<LayoutDashboard size={18} />} text="Dashboard" active={location.pathname === '/'} />}
+          {canAccess('inventario') && <NavLink to="/inventory" icon={<Server size={18} />} text="Inventario" active={location.pathname === '/inventory'} />}
+          {canAccess('mapa') && <NavLink to="/map" icon={<Map size={18} />} text="Mapa" active={location.pathname === '/map'} />}
+          {canAccess('edificios') && <NavLink to="/floors" icon={<Building2 size={18} />} text="Edificios" active={location.pathname === '/floors'} />}
+          {canAccess('impresiones') && <NavLink to="/printers" icon={<Printer size={18} />} text="Impresiones" active={location.pathname === '/printers'} />}
+          {canAccess('notificaciones') && <NavLink to="/notifications" icon={<Bell size={18} />} text="Notificaciones" active={location.pathname === '/notifications'} />}
+          {canAccess('usuarios') && (
             <NavLink to="/users" icon={<Users size={18} />} text="Usuarios" active={location.pathname === '/users'} />
           )}
         </nav>
@@ -103,7 +106,7 @@ const AppHeader = () => {
 
       {/* Breadcrumbs / Sub-header */}
       <div className="bg-slate-900/50 border-t border-white/5 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-6 py-2 flex items-center text-sm text-gray-400">
+        <div className="w-full max-w-[1920px] mx-auto px-4 lg:px-8 py-2 flex items-center text-sm text-gray-400">
           <span>Inicio</span>
           <ChevronRight size={14} className="mx-2" />
           <span className="text-white font-medium">{getPageTitle()}</span>
@@ -129,76 +132,111 @@ const NavLink = ({ to, icon, text, active }) => (
   </Link>
 );
 
+const PermRoute = ({ section, children }) => {
+  const { canAccess } = useAuth();
+  // Encontrar la primera sección permitida para redirigir
+  const sections = ['dashboard', 'inventario', 'mapa', 'edificios', 'impresiones', 'usuarios'];
+  const paths = { dashboard: '/', inventario: '/inventory', mapa: '/map', edificios: '/floors', impresiones: '/printers', usuarios: '/users' };
+  if (canAccess(section)) return children;
+  const first = sections.find(s => canAccess(s));
+  return <Navigate to={first ? paths[first] : '/'} replace />;
+};
+
 const AppContent = () => {
+  const { canAccess } = useAuth();
+  const location = useLocation();
   return (
     <div className="min-h-screen bg-[#F3F4F6] text-slate-800 font-sans selection:bg-red-200 selection:text-red-900">
       <AppHeader />
 
-      <main className="max-w-7xl mx-auto p-6 md:p-8 space-y-8">
+      <main className="w-full max-w-[1920px] mx-auto px-4 lg:px-8 py-8">
         <AnimatePresence mode="wait">
-          <Routes>
+          <Routes location={location} key={location.pathname}>
             <Route path="/" element={
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <StatsWidget />
-                <div className="mt-8">
-                  <InventoryTable />
-                </div>
-              </motion.div>
+              <PermRoute section="dashboard">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <StatsWidget />
+                  <div className="mt-8">
+                    <InventoryTable />
+                  </div>
+                </motion.div>
+              </PermRoute>
             } />
             <Route path="/inventory" element={
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100"
-              >
-                <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                  <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                    <Server className="text-red-700" size={24} />
-                    Inventario Detallado
-                  </h2>
-                  <p className="text-sm text-gray-500 mt-1">Gestión completa de activos de red registrados</p>
-                </div>
-                <InventoryTable />
-              </motion.div>
+              <PermRoute section="inventario">
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100"
+                >
+                  <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                      <Server className="text-red-700" size={24} />
+                      Inventario Detallado
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1">Gestión completa de activos de red registrados</p>
+                  </div>
+                  <InventoryTable />
+                </motion.div>
+              </PermRoute>
             } />
             <Route path="/map" element={
-              <motion.div>
-                <MapView />
-              </motion.div>
+              <PermRoute section="mapa">
+                <motion.div>
+                  <MapView readOnly={!canAccess('mapa_editar')} />
+                </motion.div>
+              </PermRoute>
             } />
             <Route path="/floors" element={
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="h-[calc(100vh-100px)]"
-              >
-                <InfrastructurePage />
-              </motion.div>
+              <PermRoute section="edificios">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="h-[calc(100vh-100px)]"
+                >
+                  <InfrastructurePage />
+                </motion.div>
+              </PermRoute>
             } />
             <Route path="/users" element={
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100"
-              >
-                <UserManagement />
-              </motion.div>
+              <PermRoute section="usuarios">
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100"
+                >
+                  <UserManagement />
+                </motion.div>
+              </PermRoute>
             } />
             <Route path="/printers" element={
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-              >
-                <PrinterPanel />
-              </motion.div>
+              <PermRoute section="impresiones">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                >
+                  <PrinterPanel />
+                </motion.div>
+              </PermRoute>
+            } />
+            <Route path="/notifications" element={
+              <PermRoute section="notificaciones">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                >
+                  <NotificationsPanel />
+                </motion.div>
+              </PermRoute>
             } />
           </Routes>
         </AnimatePresence>

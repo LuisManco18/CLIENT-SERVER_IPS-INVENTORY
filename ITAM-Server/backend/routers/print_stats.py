@@ -7,6 +7,7 @@ from sqlalchemy import func, desc, and_
 from database import get_db
 from models.print_stats import PrintStatsPC
 from models.assets import Activo
+from models.locations import Piso, Edificio
 from typing import Optional
 from datetime import date, timedelta, datetime
 from dependencies import get_current_user
@@ -33,6 +34,9 @@ def get_print_ranking(
         Activo.hostname,
         Activo.ip_address,
         Activo.area,
+        Activo.usuario_detectado,
+        Activo.usuario_nombre_completo,
+        Activo.piso_id,
         func.coalesce(func.sum(PrintStatsPC.total_pages), 0).label("total_pages"),
         func.coalesce(func.sum(PrintStatsPC.total_jobs), 0).label("total_jobs")
     ).outerjoin(
@@ -40,10 +44,21 @@ def get_print_ranking(
     )
         
     ranking = query.group_by(
-        Activo.id, Activo.hostname, Activo.ip_address, Activo.area
+        Activo.id, Activo.hostname, Activo.ip_address, Activo.area,
+        Activo.usuario_detectado, Activo.usuario_nombre_completo, Activo.piso_id
     ).order_by(
         desc("total_pages"), Activo.hostname
     ).all()
+    
+    # Obtener info de pisos/edificios para enriquecer
+    pisos_map = {}
+    for piso in db.query(Piso).all():
+        edificio = db.query(Edificio).filter(Edificio.id == piso.edificio_id).first()
+        pisos_map[piso.id] = {
+            "piso_nombre": piso.nombre,
+            "piso_nivel": piso.nivel,
+            "edificio_nombre": edificio.nombre if edificio else None
+        }
     
     return [
         {
@@ -51,11 +66,81 @@ def get_print_ranking(
             "hostname": r.hostname,
             "ip_address": r.ip_address,
             "area": r.area,
+            "usuario_detectado": r.usuario_detectado,
+            "usuario_nombre_completo": r.usuario_nombre_completo,
+            "piso_id": r.piso_id,
+            "piso_nombre": pisos_map.get(r.piso_id, {}).get("piso_nombre"),
+            "edificio_nombre": pisos_map.get(r.piso_id, {}).get("edificio_nombre"),
             "total_pages": r.total_pages or 0,
             "total_jobs": r.total_jobs or 0
         }
         for r in ranking
     ]
+
+@router.get("/daily-report")
+def get_daily_report(
+    fecha_inicio: date = Query(...),
+    fecha_fin: date = Query(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Reporte diario desglosado por PC. Solo PCs con >= 1 impresión.
+    Retorna: fecha, hostname, usuario, area, sede, piso, jobs, pages
+    """
+    query = db.query(
+        PrintStatsPC.fecha,
+        PrintStatsPC.activo_id,
+        Activo.hostname,
+        Activo.usuario_detectado,
+        Activo.usuario_nombre_completo,
+        Activo.area,
+        Activo.piso_id,
+        func.sum(PrintStatsPC.total_jobs).label("total_jobs"),
+        func.sum(PrintStatsPC.total_pages).label("total_pages")
+    ).join(
+        Activo, Activo.id == PrintStatsPC.activo_id
+    ).filter(
+        PrintStatsPC.fecha >= fecha_inicio,
+        PrintStatsPC.fecha <= fecha_fin
+    ).group_by(
+        PrintStatsPC.fecha,
+        PrintStatsPC.activo_id,
+        Activo.hostname,
+        Activo.usuario_detectado,
+        Activo.usuario_nombre_completo,
+        Activo.area,
+        Activo.piso_id
+    ).having(
+        func.sum(PrintStatsPC.total_pages) > 0
+    ).order_by(
+        PrintStatsPC.fecha.desc(), desc("total_pages")
+    ).all()
+    
+    # Enriquecer con info de pisos/edificios
+    pisos_map = {}
+    for piso in db.query(Piso).all():
+        edificio = db.query(Edificio).filter(Edificio.id == piso.edificio_id).first()
+        pisos_map[piso.id] = {
+            "piso_nombre": piso.nombre,
+            "edificio_nombre": edificio.nombre if edificio else None
+        }
+    
+    return [
+        {
+            "fecha": r.fecha.isoformat(),
+            "activo_id": r.activo_id,
+            "hostname": r.hostname,
+            "usuario_detectado": r.usuario_detectado,
+            "usuario_nombre_completo": r.usuario_nombre_completo,
+            "area": r.area,
+            "piso_nombre": pisos_map.get(r.piso_id, {}).get("piso_nombre"),
+            "edificio_nombre": pisos_map.get(r.piso_id, {}).get("edificio_nombre"),
+            "total_jobs": r.total_jobs or 0,
+            "total_pages": r.total_pages or 0
+        }
+        for r in query
+    ]
+
 
 @router.get("/by-asset/{asset_id}")
 def get_print_stats_by_asset(

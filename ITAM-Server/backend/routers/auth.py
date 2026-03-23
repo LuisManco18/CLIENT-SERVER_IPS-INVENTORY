@@ -76,7 +76,15 @@ def login(credentials: auth_schema.LoginRequest, db: Session = Depends(get_db)):
         "username": user.username,
         "nombre_completo": user.nombre_completo,
         "es_superadmin": user.es_superadmin,
-        "permisos": permisos
+        "permisos": permisos,
+        "perm_dashboard": True if user.es_superadmin else (user.perm_dashboard if user.perm_dashboard is not None else True),
+        "perm_inventario": True if user.es_superadmin else (user.perm_inventario if user.perm_inventario is not None else True),
+        "perm_mapa": True if user.es_superadmin else (user.perm_mapa if user.perm_mapa is not None else True),
+        "perm_mapa_editar": True if user.es_superadmin else (user.perm_mapa_editar if user.perm_mapa_editar is not None else True),
+        "perm_edificios": True if user.es_superadmin else (user.perm_edificios if user.perm_edificios is not None else True),
+        "perm_impresiones": True if user.es_superadmin else (user.perm_impresiones if user.perm_impresiones is not None else True),
+        "perm_usuarios": True if user.es_superadmin else (user.perm_usuarios if user.perm_usuarios is not None else False),
+        "perm_notificaciones": True if user.es_superadmin else (user.perm_notificaciones if user.perm_notificaciones is not None else True),
     }
 
 @router.get("/me", response_model=auth_schema.UserResponse)

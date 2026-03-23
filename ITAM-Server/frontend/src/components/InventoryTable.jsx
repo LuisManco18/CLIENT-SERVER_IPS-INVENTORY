@@ -150,12 +150,44 @@ export default function InventoryTable() {
         }
     };
 
-    const exportToCSV = () => {
-        window.location.href = `${API_ENDPOINTS.REPORTS}/excel`;
+    const exportToCSV = async () => {
+        try {
+            const response = await axios.get(`${API_ENDPOINTS.REPORTS}/excel`, {
+                responseType: 'blob',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'reporte_inventario.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error downloading Excel:', error);
+            alert('Error al descargar el reporte Excel');
+        }
     };
 
-    const exportToPDF = () => {
-        window.location.href = `${API_ENDPOINTS.REPORTS}/pdf`;
+    const exportToPDF = async () => {
+        try {
+            const response = await axios.get(`${API_ENDPOINTS.REPORTS}/pdf`, {
+                responseType: 'blob',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'reporte_inventario.pdf');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error downloading PDF:', error);
+            alert('Error al descargar el reporte PDF');
+        }
     };
 
     // Obtener nombre de piso para mostrar en la tabla
@@ -407,6 +439,9 @@ export default function InventoryTable() {
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <div>
                                         <div className="text-sm font-medium text-gray-900">{pc.usuario_detectado || 'N/A'}</div>
+                                        {pc.usuario_nombre_completo && pc.usuario_nombre_completo !== pc.usuario_detectado && (
+                                            <div className="text-xs text-gray-500">{pc.usuario_nombre_completo}</div>
+                                        )}
                                     </div>
                                 </td>
 

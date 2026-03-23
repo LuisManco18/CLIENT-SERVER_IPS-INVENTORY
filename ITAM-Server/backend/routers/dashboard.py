@@ -96,9 +96,14 @@ def listar_activos(
         else:
             activos = [a for a in activos if not a.is_online()]
     
-    # Agregar estado online a cada activo en la respuesta
+    # Agregar estado online y alertas a cada activo en la respuesta
     resultado = []
     for activo in activos:
+        # Calcular alertas críticas por activo
+        alert_reasons = []
+        if not activo.usuario_detectado or activo.usuario_detectado == "No User":
+            alert_reasons.append("Sin usuario asignado")
+
         activo_dict = {
             "id": activo.id,
             "serial_number": activo.serial_number,
@@ -106,6 +111,7 @@ def listar_activos(
             "ip_address": activo.ip_address,
             "mac_address": activo.mac_address,
             "usuario_detectado": activo.usuario_detectado,
+            "usuario_nombre_completo": activo.usuario_nombre_completo,
             "marca": activo.marca,
             "modelo": activo.modelo,
             "sistema_operativo": activo.sistema_operativo,
@@ -118,7 +124,9 @@ def listar_activos(
             "pos_x": activo.pos_x,
             "pos_y": activo.pos_y,
             "area": activo.area,
-            "is_online": activo.is_online()
+            "is_online": activo.is_online(),
+            "has_alert": len(alert_reasons) > 0,
+            "alert_reasons": alert_reasons
         }
         resultado.append(activo_dict)
     
@@ -139,21 +147,12 @@ def guardar_posicion(serial: str, pos: PositionUpdate, db: Session = Depends(get
         if not piso:
             raise HTTPException(status_code=404, detail="Piso no encontrado")
     
-    # Loguear cambios de posición
-    if activo.pos_x != pos.pos_x or activo.pos_y != pos.pos_y:
-        log_asset_change(db, activo.id, "position", f"{activo.pos_x},{activo.pos_y}", f"{pos.pos_x},{pos.pos_y}")
-    
-    if activo.piso_id != pos.piso_id:
-        log_asset_change(db, activo.id, "piso_id", activo.piso_id, pos.piso_id)
-
     activo.pos_x = pos.pos_x
     activo.pos_y = pos.pos_y
     activo.piso_id = pos.piso_id
     
     # Actualizar tipo de icono si se proporciona
     if pos.icono_tipo:
-        if activo.icono_tipo != pos.icono_tipo:
-            log_asset_change(db, activo.id, "icono_tipo", activo.icono_tipo, pos.icono_tipo)
         activo.icono_tipo = pos.icono_tipo
     
     db.commit()
@@ -167,10 +166,6 @@ def quitar_ubicacion(serial: str, db: Session = Depends(get_db)):
     
     if not activo:
         raise HTTPException(status_code=404, detail="Activo no encontrado")
-    
-    # Loguear el cambio
-    if activo.piso_id:
-        log_asset_change(db, activo.id, "piso_id", str(activo.piso_id), "NULL")
     
     # Quitar posición
     activo.pos_x = None

@@ -9,14 +9,22 @@ import {
 import AssetIcon from './AssetIcon';
 import useRealTimeAssets from '../hooks/useRealTimeAssets';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '../AuthContext';
 
-export default function MapView({ onOpenFloorManager }) {
+export default function MapView({ onOpenFloorManager, readOnly = false }) {
     const { activos, loading: assetsLoading } = useRealTimeAssets();
     const location = useLocation();
+    const { filterBuildingsByPermission, filterFloorsByPermission } = useAuth();
     const [edificios, setEdificios] = useState([]);
     const [pisos, setPisos] = useState([]);
-    const [selectedEdificio, setSelectedEdificio] = useState(null);
-    const [selectedPiso, setSelectedPiso] = useState(null);
+    const [selectedEdificio, setSelectedEdificio] = useState(() => {
+        const saved = localStorage.getItem('map_selectedEdificio');
+        return saved ? parseInt(saved) : null;
+    });
+    const [selectedPiso, setSelectedPiso] = useState(() => {
+        const saved = localStorage.getItem('map_selectedPiso');
+        return saved ? parseInt(saved) : null;
+    });
     const [pisoImage, setPisoImage] = useState(null);
     const [zoom, setZoom] = useState(1);
     const [showGrid, setShowGrid] = useState(false);
@@ -35,12 +43,14 @@ export default function MapView({ onOpenFloorManager }) {
 
     useEffect(() => {
         if (selectedEdificio) {
+            localStorage.setItem('map_selectedEdificio', selectedEdificio);
             loadFloorsByBuilding(selectedEdificio);
         }
     }, [selectedEdificio]);
 
     useEffect(() => {
         if (selectedPiso) {
+            localStorage.setItem('map_selectedPiso', selectedPiso);
             loadFloorImage(selectedPiso);
         }
     }, [selectedPiso]);
@@ -48,13 +58,16 @@ export default function MapView({ onOpenFloorManager }) {
     const loadBuildings = async () => {
         try {
             const response = await axios.get(API_BUILDINGS);
-            setEdificios(response.data);
+            const filtered = filterBuildingsByPermission(response.data);
+            setEdificios(filtered);
 
             // Si venimos de otra vista con un edificio específico
             if (location.state?.edificioId) {
                 setSelectedEdificio(location.state.edificioId);
-            } else if (response.data.length > 0 && !selectedEdificio) {
-                setSelectedEdificio(response.data[0].id);
+            } else if (!selectedEdificio && filtered.length > 0) {
+                setSelectedEdificio(filtered[0].id);
+            } else if (selectedEdificio && !filtered.some(e => e.id === selectedEdificio) && filtered.length > 0) {
+                setSelectedEdificio(filtered[0].id);
             }
         } catch (error) {
             console.error('Error loading buildings:', error);
@@ -64,13 +77,16 @@ export default function MapView({ onOpenFloorManager }) {
     const loadFloorsByBuilding = async (edificioId) => {
         try {
             const response = await axios.get(`${API_BUILDINGS}/${edificioId}/floors`);
-            setPisos(response.data);
+            const filtered = filterFloorsByPermission(response.data, edificioId);
+            setPisos(filtered);
 
             // Si venimos de otra vista con un piso específico y pertenece al edificio seleccionado
             if (location.state?.pisoId && location.state?.edificioId === edificioId) {
                 setSelectedPiso(location.state.pisoId);
-            } else if (response.data.length > 0) {
-                setSelectedPiso(response.data[0].id);
+            } else if (selectedPiso && filtered.some(p => p.id === selectedPiso)) {
+                loadFloorImage(selectedPiso);
+            } else if (filtered.length > 0) {
+                setSelectedPiso(filtered[0].id);
             } else {
                 setSelectedPiso(null);
                 setPisoImage(null);
@@ -311,16 +327,26 @@ export default function MapView({ onOpenFloorManager }) {
                         {activosSinAsignar.map((asset) => (
                             <div
                                 key={asset.id}
-                                className="flex items-center gap-2 p-2 bg-white rounded border border-gray-200 hover:border-red-300 hover:shadow-sm cursor-grab active:cursor-grabbing transition-all group"
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, asset)}
+                                className={`flex items-center gap-2 p-2 rounded border cursor-grab active:cursor-grabbing transition-all group ${
+                                    asset.has_alert
+                                        ? 'bg-yellow-50 border-yellow-300 hover:border-yellow-400 hover:shadow-sm'
+                                        : 'bg-white border-gray-200 hover:border-red-300 hover:shadow-sm'
+                                }`}
+                                draggable={!readOnly}
+                                onDragStart={(e) => !readOnly && handleDragStart(e, asset)}
+                                title={asset.has_alert ? `⚠ ${asset.alert_reasons?.join(', ')}` : ''}
                             >
-                                <div className="p-1.5 bg-gray-50 rounded group-hover:bg-red-50 text-gray-500 group-hover:text-red-600 transition-colors">
+                                <div className={`p-1.5 rounded transition-colors ${
+                                    asset.has_alert
+                                        ? 'bg-yellow-100 text-yellow-600 group-hover:bg-yellow-200'
+                                        : 'bg-gray-50 text-gray-500 group-hover:bg-red-50 group-hover:text-red-600'
+                                }`}>
                                     <AssetIcon tipo={asset.icono_tipo} isOnline={asset.is_online} size={16} />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <div className="text-xs font-bold text-gray-800 truncate">
+                                    <div className="text-xs font-bold text-gray-800 truncate flex items-center gap-1">
                                         {asset.hostname}
+                                        {asset.has_alert && <span className="text-yellow-500 text-[10px]">⚠</span>}
                                     </div>
                                     <div className="text-[10px] text-gray-500 truncate flex items-center gap-1">
                                         <span className={`w-1.5 h-1.5 rounded-full ${asset.is_online ? 'bg-green-500' : 'bg-red-500'}`}></span>
@@ -369,13 +395,11 @@ export default function MapView({ onOpenFloorManager }) {
                             className="relative shadow-xl overflow-hidden bg-white transition-transform duration-200 ease-out"
                             style={{
                                 transform: `scale(${zoom})`,
-                                width: pisoImage ? 'auto' : '100%',
-                                height: pisoImage ? 'auto' : '100%',
-                                minWidth: '400px',
-                                minHeight: '300px'
+                                width: '100%',
+                                height: '100%',
                             }}
-                            onDragOver={handleDragOver}
-                            onDrop={handleDrop}
+                            onDragOver={readOnly ? undefined : handleDragOver}
+                            onDrop={readOnly ? undefined : handleDrop}
                             ref={mapContainerRef}
                         >
                             {pisoImage ? (
@@ -383,7 +407,7 @@ export default function MapView({ onOpenFloorManager }) {
                                     <img
                                         src={pisoImage}
                                         alt="Floor Plan"
-                                        className="pointer-events-none select-none block max-w-none"
+                                        className="pointer-events-none select-none block w-full h-full object-contain"
                                         style={{ userDrag: 'none' }}
                                     />
 
@@ -404,7 +428,8 @@ export default function MapView({ onOpenFloorManager }) {
                                         <DraggableAsset
                                             key={asset.id}
                                             asset={asset}
-                                            onStop={handleStopDrag}
+                                            onStop={readOnly ? undefined : handleStopDrag}
+                                            disabled={readOnly}
                                         />
                                     ))}
                                 </>

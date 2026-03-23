@@ -15,8 +15,7 @@ from dependencies import get_current_user
 
 router = APIRouter(
     prefix="/api/reports",
-    tags=["Reports"],
-    dependencies=[Depends(get_current_user)]
+    tags=["Reports"]
 )
 
 def get_filtered_activos(
@@ -53,6 +52,7 @@ def get_filtered_activos(
 @router.get("/pdf")
 def generate_pdf_report(
     db: Session = Depends(get_db),
+    current_user: str = Depends(get_current_user),
     estado: Optional[str] = None,
     area: Optional[str] = None,
     dominio: Optional[str] = None,
@@ -64,7 +64,8 @@ def generate_pdf_report(
     elements = []
     
     styles = getSampleStyleSheet()
-    elements.append(Paragraph(f"Reporte de Inventario - {datetime.now().strftime('%Y-%m-%d')}", styles['Title']))
+    elements.append(Paragraph(f"Reporte de Inventario - {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles['Title']))
+    elements.append(Paragraph(f"Descargado por: {current_user.nombre_completo or current_user.username}", styles['Normal']))
     elements.append(Spacer(1, 12))
     
     # Fetch Data with Filters
@@ -105,6 +106,7 @@ def generate_pdf_report(
 @router.get("/excel")
 def generate_excel_report(
     db: Session = Depends(get_db),
+    current_user: str = Depends(get_current_user),
     estado: Optional[str] = None,
     area: Optional[str] = None,
     dominio: Optional[str] = None,
@@ -132,7 +134,10 @@ def generate_excel_report(
     
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name="Inventario")
+        df.to_excel(writer, index=False, sheet_name="Inventario", startrow=2)
+        ws = writer.sheets["Inventario"]
+        ws['A1'] = f"Reporte de Inventario - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        ws['A2'] = f"Descargado por: {current_user.nombre_completo or current_user.username}"
         
     buffer.seek(0)
     return StreamingResponse(

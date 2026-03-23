@@ -18,6 +18,16 @@ class UsuarioAdmin(Base):
     fecha_creacion = Column(DateTime(timezone=True), server_default=func.now())
     ultimo_login = Column(DateTime(timezone=True), nullable=True)
     
+    # Permisos por sección
+    perm_dashboard = Column(Boolean, default=True)
+    perm_inventario = Column(Boolean, default=True)
+    perm_mapa = Column(Boolean, default=True)
+    perm_mapa_editar = Column(Boolean, default=True)  # False = solo lectura del mapa
+    perm_edificios = Column(Boolean, default=True)
+    perm_impresiones = Column(Boolean, default=True)
+    perm_usuarios = Column(Boolean, default=False)  # Solo superadmin por default
+    perm_notificaciones = Column(Boolean, default=True)
+    
     # Relación con permisos
     permisos = relationship("PermisoUsuario", back_populates="usuario", cascade="all, delete-orphan")
 

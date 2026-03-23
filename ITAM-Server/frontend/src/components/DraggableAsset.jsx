@@ -2,10 +2,10 @@ import React, { useRef, useState, useEffect } from 'react';
 import Draggable from 'react-draggable';
 import axios from 'axios';
 import AssetIcon from './AssetIcon';
-import { MapPinOff, Power, RotateCcw, XCircle, X, Timer } from 'lucide-react';
+import { MapPinOff, Power, RotateCcw, XCircle, X, Timer, AlertTriangle } from 'lucide-react';
 import { API_ENDPOINTS } from '../config';
 
-export default function DraggableAsset({ asset, onStop, onUnassign }) {
+export default function DraggableAsset({ asset, onStop, onUnassign, disabled = false }) {
     const nodeRef = useRef(null);
     const [showMenu, setShowMenu] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -113,12 +113,16 @@ export default function DraggableAsset({ asset, onStop, onUnassign }) {
         }
     };
 
+    // Determinar si este activo tiene alerta crítica
+    const hasAlert = asset.has_alert;
+
     return (
         <>
             <Draggable
                 nodeRef={nodeRef}
                 bounds="parent"
-                onStop={(e, data) => onStop(e, data, asset)}
+                disabled={disabled}
+                onStop={(e, data) => onStop && onStop(e, data, asset)}
             >
                 <div
                     ref={nodeRef}
@@ -131,12 +135,23 @@ export default function DraggableAsset({ asset, onStop, onUnassign }) {
                     onClick={handleClick}
                 >
                     <div className={`p-1.5 rounded-full shadow-md border-2 transition-all hover:scale-110 ${showMenu ? 'scale-125 ring-4 ring-blue-400' : ''
-                        } ${asset.is_online
-                            ? 'bg-white border-green-500 text-green-600'
-                            : 'bg-white border-red-500 text-red-600'
-                        } ${asset.es_dominio ? 'ring-2 ring-blue-100' : ''} ${pendingShutdown ? 'animate-pulse border-orange-500 text-orange-600' : ''}`}>
+                        } ${hasAlert
+                            ? 'bg-yellow-50 border-yellow-400 text-yellow-600 ring-2 ring-yellow-300/50'
+                            : asset.is_online
+                                ? 'bg-white border-green-500 text-green-600'
+                                : 'bg-white border-red-500 text-red-600'
+                        } ${asset.es_dominio && !hasAlert ? 'ring-2 ring-blue-100' : ''} ${pendingShutdown ? 'animate-pulse border-orange-500 text-orange-600' : ''}`}
+                        style={hasAlert && !pendingShutdown ? { boxShadow: '0 0 8px 2px rgba(251, 191, 36, 0.45)' } : {}}
+                    >
                         <AssetIcon tipo={asset.icono_tipo} size={20} isOnline={asset.is_online} />
                     </div>
+
+                    {/* Alert badge */}
+                    {hasAlert && !pendingShutdown && (
+                        <div className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 rounded-full w-5 h-5 flex items-center justify-center" title="Alerta crítica">
+                            <AlertTriangle size={11} />
+                        </div>
+                    )}
 
                     {/* Countdown badge */}
                     {pendingShutdown && (
@@ -147,7 +162,7 @@ export default function DraggableAsset({ asset, onStop, onUnassign }) {
 
                     {/* Tooltip Label */}
                     <div className="absolute top-full mt-1 px-2 py-0.5 bg-gray-900/90 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                        {asset.hostname} {pendingShutdown ? `• Apagando en ${countdown}s` : '• Click para opciones'}
+                        {asset.hostname} {pendingShutdown ? `• Apagando en ${countdown}s` : hasAlert ? '• ⚠ Alerta crítica' : '• Click para opciones'}
                     </div>
 
                     {/* Menu desplegable al seleccionar */}
@@ -168,6 +183,19 @@ export default function DraggableAsset({ asset, onStop, onUnassign }) {
                                     <X size={14} />
                                 </button>
                             </div>
+
+                            {/* Globo de alerta crítica */}
+                            {hasAlert && asset.alert_reasons?.length > 0 && (
+                                <div className="mx-3 my-2 p-2.5 bg-yellow-50 border border-yellow-300 rounded-lg">
+                                    <div className="flex items-center gap-1.5 text-yellow-700 text-xs font-bold mb-1">
+                                        <AlertTriangle size={12} />
+                                        ALERTA CRÍTICA
+                                    </div>
+                                    {asset.alert_reasons.map((reason, i) => (
+                                        <div key={i} className="text-xs text-yellow-600 pl-4">• {reason}</div>
+                                    ))}
+                                </div>
+                            )}
 
                             <div className="py-1">
                                 {/* Quitar del mapa */}

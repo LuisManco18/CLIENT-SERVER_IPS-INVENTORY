@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Clock, Calendar, User, ArrowRight } from 'lucide-react';
+import { X, Clock, Calendar, User, ArrowRight, Power, PowerOff } from 'lucide-react';
 import { format } from 'date-fns';
 import axios from 'axios';
 import { API_ENDPOINTS } from '../config';
@@ -25,6 +25,27 @@ export default function AssetHistoryModal({ isOpen, onClose, assetId, hostname }
         } finally {
             setLoading(false);
         }
+    };
+
+    const getEventStyle = (campo) => {
+        if (campo === 'apagado') return { dotColor: 'bg-red-500', ringColor: 'ring-red-100', badgeBg: 'bg-red-50', badgeText: 'text-red-700', badgeBorder: 'border-red-100', icon: <PowerOff size={14} className="text-red-500" /> };
+        if (campo === 'encendido') return { dotColor: 'bg-green-500', ringColor: 'ring-green-100', badgeBg: 'bg-green-50', badgeText: 'text-green-700', badgeBorder: 'border-green-100', icon: <Power size={14} className="text-green-500" /> };
+        return { dotColor: 'bg-blue-500', ringColor: 'ring-blue-100', badgeBg: 'bg-blue-50', badgeText: 'text-blue-700', badgeBorder: 'border-blue-100', icon: null };
+    };
+
+    const getFieldLabel = (campo) => {
+        const labels = {
+            'hostname': 'Hostname',
+            'ip_address': 'Dirección IP',
+            'usuario': 'Usuario',
+            'os': 'Sistema Operativo',
+            'area': 'Área',
+            'es_dominio': 'Dominio',
+            'creation': 'Creación',
+            'apagado': '⏻ Apagado',
+            'encendido': '⏻ Encendido'
+        };
+        return labels[campo] || campo;
     };
 
     if (!isOpen) return null;
@@ -76,7 +97,9 @@ export default function AssetHistoryModal({ isOpen, onClose, assetId, hostname }
                             </div>
                         ) : (
                             <div className="relative space-y-6 pl-4 before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.5 before:bg-gradient-to-b before:from-blue-500 before:to-purple-500/0">
-                                {history.map((record, index) => (
+                                {history.map((record, index) => {
+                                    const style = getEventStyle(record.campo_modificado);
+                                    return (
                                     <motion.div
                                         key={record.id}
                                         initial={{ opacity: 0, x: -20 }}
@@ -84,31 +107,52 @@ export default function AssetHistoryModal({ isOpen, onClose, assetId, hostname }
                                         transition={{ delay: index * 0.05 }}
                                         className="relative bg-white p-5 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
                                     >
-                                        <div className="absolute -left-[22px] top-5 w-3 h-3 rounded-full bg-blue-500 ring-4 ring-blue-100" />
+                                        <div className={`absolute -left-[22px] top-5 w-3 h-3 rounded-full ${style.dotColor} ring-4 ${style.ringColor}`} />
 
                                         <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-100">
                                             <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                                 <Calendar size={14} />
                                                 {format(new Date(record.fecha_cambio), 'dd MMM yyyy, HH:mm')}
                                             </div>
-                                            <span className="px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100">
-                                                {record.campo_modificado}
+                                            <span className={`px-2 py-1 rounded-md ${style.badgeBg} ${style.badgeText} text-xs font-bold border ${style.badgeBorder} flex items-center gap-1`}>
+                                                {style.icon}
+                                                {getFieldLabel(record.campo_modificado)}
                                             </span>
                                         </div>
 
-                                        <div className="flex items-center gap-4 text-sm">
-                                            <div className="flex-1 p-3 bg-red-50 rounded-lg border border-red-100/50">
-                                                <div className="text-xs font-semibold text-red-500 mb-1">ANTERIOR</div>
-                                                <div className="font-mono text-gray-700 break-all">{record.valor_anterior || '(Vacío)'}</div>
+                                        {record.campo_modificado === 'apagado' ? (
+                                            <div className="flex items-center gap-3 text-sm">
+                                                <div className="flex-1 p-3 bg-red-50 rounded-lg border border-red-100/50">
+                                                    <div className="text-xs font-semibold text-red-500 mb-1">Último reporte</div>
+                                                    <div className="font-mono text-gray-700">{record.valor_anterior}</div>
+                                                </div>
+                                                <ArrowRight size={16} className="text-gray-400 shrink-0" />
+                                                <div className="flex-1 p-3 bg-red-50 rounded-lg border border-red-100/50">
+                                                    <div className="text-xs font-semibold text-red-500 mb-1">Duración</div>
+                                                    <div className="font-mono text-gray-700">{record.valor_nuevo}</div>
+                                                </div>
                                             </div>
-                                            <ArrowRight size={16} className="text-gray-400 shrink-0" />
-                                            <div className="flex-1 p-3 bg-green-50 rounded-lg border border-green-100/50">
-                                                <div className="text-xs font-semibold text-green-500 mb-1">NUEVO</div>
-                                                <div className="font-mono text-gray-700 break-all">{record.valor_nuevo || '(Vacío)'}</div>
+                                        ) : record.campo_modificado === 'encendido' ? (
+                                            <div className="p-3 bg-green-50 rounded-lg border border-green-100/50 text-sm">
+                                                <div className="text-xs font-semibold text-green-500 mb-1">Encendido a las</div>
+                                                <div className="font-mono text-gray-700">{record.valor_nuevo}</div>
                                             </div>
-                                        </div>
+                                        ) : (
+                                            <div className="flex items-center gap-4 text-sm">
+                                                <div className="flex-1 p-3 bg-red-50 rounded-lg border border-red-100/50">
+                                                    <div className="text-xs font-semibold text-red-500 mb-1">ANTERIOR</div>
+                                                    <div className="font-mono text-gray-700 break-all">{record.valor_anterior || '(Vacío)'}</div>
+                                                </div>
+                                                <ArrowRight size={16} className="text-gray-400 shrink-0" />
+                                                <div className="flex-1 p-3 bg-green-50 rounded-lg border border-green-100/50">
+                                                    <div className="text-xs font-semibold text-green-500 mb-1">NUEVO</div>
+                                                    <div className="font-mono text-gray-700 break-all">{record.valor_nuevo || '(Vacío)'}</div>
+                                                </div>
+                                            </div>
+                                        )}
                                     </motion.div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

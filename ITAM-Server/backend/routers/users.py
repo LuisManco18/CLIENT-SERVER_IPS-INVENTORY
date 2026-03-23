@@ -72,7 +72,15 @@ def listar_usuarios(
             es_activo=user.es_activo,
             es_superadmin=user.es_superadmin,
             permisos_count=len(user.permisos),
-            ultimo_login=user.ultimo_login
+            ultimo_login=user.ultimo_login,
+            perm_dashboard=user.perm_dashboard if user.perm_dashboard is not None else True,
+            perm_inventario=user.perm_inventario if user.perm_inventario is not None else True,
+            perm_mapa=user.perm_mapa if user.perm_mapa is not None else True,
+            perm_mapa_editar=user.perm_mapa_editar if user.perm_mapa_editar is not None else True,
+            perm_edificios=user.perm_edificios if user.perm_edificios is not None else True,
+            perm_impresiones=user.perm_impresiones if user.perm_impresiones is not None else True,
+            perm_usuarios=user.perm_usuarios if user.perm_usuarios is not None else False,
+            perm_notificaciones=user.perm_notificaciones if user.perm_notificaciones is not None else True,
         ))
     
     return result
@@ -117,7 +125,15 @@ def obtener_usuario(
         es_superadmin=usuario.es_superadmin,
         fecha_creacion=usuario.fecha_creacion,
         ultimo_login=usuario.ultimo_login,
-        permisos=permisos_response
+        permisos=permisos_response,
+        perm_dashboard=usuario.perm_dashboard if usuario.perm_dashboard is not None else True,
+        perm_inventario=usuario.perm_inventario if usuario.perm_inventario is not None else True,
+        perm_mapa=usuario.perm_mapa if usuario.perm_mapa is not None else True,
+        perm_mapa_editar=usuario.perm_mapa_editar if usuario.perm_mapa_editar is not None else True,
+        perm_edificios=usuario.perm_edificios if usuario.perm_edificios is not None else True,
+        perm_impresiones=usuario.perm_impresiones if usuario.perm_impresiones is not None else True,
+        perm_usuarios=usuario.perm_usuarios if usuario.perm_usuarios is not None else False,
+        perm_notificaciones=usuario.perm_notificaciones if usuario.perm_notificaciones is not None else True,
     )
 
 
@@ -147,7 +163,15 @@ def crear_usuario(
         hashed_password=get_password_hash(usuario_data.password),
         es_activo=usuario_data.es_activo,
         es_admin=usuario_data.es_admin,
-        es_superadmin=usuario_data.es_superadmin
+        es_superadmin=usuario_data.es_superadmin,
+        perm_dashboard=usuario_data.perm_dashboard,
+        perm_inventario=usuario_data.perm_inventario,
+        perm_mapa=usuario_data.perm_mapa,
+        perm_mapa_editar=usuario_data.perm_mapa_editar,
+        perm_edificios=usuario_data.perm_edificios,
+        perm_impresiones=usuario_data.perm_impresiones,
+        perm_usuarios=usuario_data.perm_usuarios,
+        perm_notificaciones=usuario_data.perm_notificaciones,
     )
     
     db.add(nuevo_usuario)
@@ -202,6 +226,23 @@ def actualizar_usuario(
         usuario.es_admin = usuario_data.es_admin
     if usuario_data.password:
         usuario.hashed_password = get_password_hash(usuario_data.password)
+    # Permisos por sección
+    if usuario_data.perm_dashboard is not None:
+        usuario.perm_dashboard = usuario_data.perm_dashboard
+    if usuario_data.perm_inventario is not None:
+        usuario.perm_inventario = usuario_data.perm_inventario
+    if usuario_data.perm_mapa is not None:
+        usuario.perm_mapa = usuario_data.perm_mapa
+    if usuario_data.perm_mapa_editar is not None:
+        usuario.perm_mapa_editar = usuario_data.perm_mapa_editar
+    if usuario_data.perm_edificios is not None:
+        usuario.perm_edificios = usuario_data.perm_edificios
+    if usuario_data.perm_impresiones is not None:
+        usuario.perm_impresiones = usuario_data.perm_impresiones
+    if usuario_data.perm_usuarios is not None:
+        usuario.perm_usuarios = usuario_data.perm_usuarios
+    if usuario_data.perm_notificaciones is not None:
+        usuario.perm_notificaciones = usuario_data.perm_notificaciones
     
     db.commit()
     

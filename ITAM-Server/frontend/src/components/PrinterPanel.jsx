@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
     Printer, RefreshCw, Search, Calendar, BarChart3,
-    FileText, User, Laptop, MapPin, Hash, Trophy
+    FileText, User, Laptop, MapPin, Hash, Trophy, Download
 } from "lucide-react";
 import axios from "axios";
 import { API_ENDPOINTS } from '../config';
@@ -11,57 +11,181 @@ const API_URL = API_ENDPOINTS.PRINT_STATS;
 
 const PrinterPanel = () => {
     const [ranking, setRanking] = useState([]);
-    const [stats, setStats] = useState(null);
+    const [dailyReport, setDailyReport] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
-    const [dateRange, setDateRange] = useState("all");
+    const [viewMode, setViewMode] = useState("ranking"); // "ranking" or "daily"
+
+    // Date range state
+    const today = new Date().toISOString().split('T')[0];
+    const [fechaInicio, setFechaInicio] = useState(today);
+    const [fechaFin, setFechaFin] = useState(today);
+    const [activePreset, setActivePreset] = useState("today");
+
+    const printRef = useRef(null);
 
     useEffect(() => {
         fetchData();
-    }, [dateRange]);
+    }, [fechaInicio, fechaFin]);
+
+    const applyPreset = (preset) => {
+        setActivePreset(preset);
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0];
+
+        if (preset === "today") {
+            setFechaInicio(todayStr);
+            setFechaFin(todayStr);
+        } else if (preset === "week") {
+            const weekAgo = new Date(now);
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            setFechaInicio(weekAgo.toISOString().split('T')[0]);
+            setFechaFin(todayStr);
+        } else if (preset === "month") {
+            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+            setFechaInicio(firstDay.toISOString().split('T')[0]);
+            setFechaFin(todayStr);
+        } else if (preset === "all") {
+            setFechaInicio("");
+            setFechaFin("");
+        }
+    };
+
+    const handleDateChange = (field, value) => {
+        setActivePreset("custom");
+        if (field === "inicio") setFechaInicio(value);
+        else setFechaFin(value);
+    };
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            // Configurar fechas según el filtro
             let queryParams = "";
-            const today = new Date();
-
-            if (dateRange === "today") {
-                const dateStr = today.toISOString().split('T')[0];
-                queryParams = `?fecha_inicio=${dateStr}&fecha_fin=${dateStr}`;
-            } else if (dateRange === "month") {
-                const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-                const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-                queryParams = `?fecha_inicio=${firstDay}&fecha_fin=${lastDay}`;
+            if (fechaInicio && fechaFin) {
+                queryParams = `?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`;
             }
 
-            // Obtener ranking y el endpoint tradicional de stats de servidores (opcional)
-            const [rankingRes, statsRes] = await Promise.all([
-                axios.get(`${API_URL}/ranking${queryParams}`),
-                axios.get(`${API_URL}/summary`).catch(() => ({ data: null }))
-            ]);
+            const requests = [
+                axios.get(`${API_URL}/ranking${queryParams}`)
+            ];
 
-            setRanking(rankingRes.data);
-            if (statsRes.data) {
-                setStats(statsRes.data);
+            // Only fetch daily report if we have a date range
+            if (fechaInicio && fechaFin) {
+                requests.push(
+                    axios.get(`${API_URL}/daily-report?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`)
+                );
             }
 
+            const results = await Promise.all(requests);
+            setRanking(results[0].data);
+            if (results[1]) {
+                setDailyReport(results[1].data);
+            } else {
+                setDailyReport([]);
+            }
         } catch (error) {
-            console.error("Error fetching print ranking:", error);
+            console.error("Error fetching print data:", error);
         } finally {
             setLoading(false);
         }
     };
 
     const filteredRanking = ranking.filter(item => {
+        if (item.total_pages === 0 && item.total_jobs === 0) return false;
         const term = searchTerm.toLowerCase();
         return (
             (item.hostname && item.hostname.toLowerCase().includes(term)) ||
             (item.ip_address && item.ip_address.includes(term)) ||
-            (item.area && item.area.toLowerCase().includes(term))
+            (item.area && item.area.toLowerCase().includes(term)) ||
+            (item.usuario_detectado && item.usuario_detectado.toLowerCase().includes(term)) ||
+            (item.usuario_nombre_completo && item.usuario_nombre_completo.toLowerCase().includes(term))
         );
     });
+
+    const filteredDaily = dailyReport.filter(item => {
+        const term = searchTerm.toLowerCase();
+        return (
+            (item.hostname && item.hostname.toLowerCase().includes(term)) ||
+            (item.area && item.area.toLowerCase().includes(term)) ||
+            (item.usuario_detectado && item.usuario_detectado.toLowerCase().includes(term)) ||
+            (item.usuario_nombre_completo && item.usuario_nombre_completo.toLowerCase().includes(term))
+        );
+    });
+
+    const handlePrint = () => {
+        const data = viewMode === "daily" ? filteredDaily : filteredRanking;
+        const rangeLabel = fechaInicio && fechaFin
+            ? (fechaInicio === fechaFin ? fechaInicio : `${fechaInicio} al ${fechaFin}`)
+            : "Histórico";
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <html>
+            <head>
+                <title>Reporte de Impresiones - ${rangeLabel}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+                    h1 { font-size: 18px; color: #8B0000; margin-bottom: 4px; }
+                    .subtitle { font-size: 12px; color: #666; margin-bottom: 16px; }
+                    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+                    th { background: #8B0000; color: white; padding: 8px 6px; text-align: left; font-weight: 600; }
+                    td { padding: 6px; border-bottom: 1px solid #ddd; }
+                    tr:nth-child(even) { background: #f9f9f9; }
+                    .text-right { text-align: right; }
+                    .bold { font-weight: bold; }
+                    .footer { margin-top: 20px; font-size: 10px; color: #999; text-align: center; border-top: 1px solid #ddd; padding-top: 10px; }
+                    .totals { margin-top: 12px; font-size: 12px; font-weight: bold; }
+                    @media print { body { margin: 10px; } }
+                </style>
+            </head>
+            <body>
+                <h1>📊 Reporte de Impresiones por Computadora</h1>
+                <div class="subtitle">Período: ${rangeLabel} | Generado: ${new Date().toLocaleString()}</div>
+                <table>
+                    <thead>
+                        <tr>
+                            ${viewMode === "daily" ? '<th>Fecha</th>' : '<th>#</th>'}
+                            <th>Hostname</th>
+                            <th>Usuario</th>
+                            <th>Área</th>
+                            <th>Sede / Piso</th>
+                            <th class="text-right">Trabajos</th>
+                            <th class="text-right">Páginas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.map((item, i) => `
+                            <tr>
+                                <td>${viewMode === "daily" ? item.fecha : (i + 1)}</td>
+                                <td class="bold">${item.hostname || '-'}</td>
+                                <td>${item.usuario_nombre_completo || item.usuario_detectado || '-'}</td>
+                                <td>${item.area || '-'}</td>
+                                <td>${item.edificio_nombre ? `${item.edificio_nombre} - ${item.piso_nombre || ''}` : (item.piso_nombre || '-')}</td>
+                                <td class="text-right">${item.total_jobs.toLocaleString()}</td>
+                                <td class="text-right bold">${item.total_pages.toLocaleString()}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <div class="totals">
+                    Total: ${data.reduce((a, c) => a + c.total_pages, 0).toLocaleString()} páginas | 
+                    ${data.reduce((a, c) => a + c.total_jobs, 0).toLocaleString()} trabajos |
+                    ${data.length} registros
+                </div>
+                <div class="footer">Sistema ITAM - Inventario Tecnológico</div>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => printWindow.print(), 500);
+    };
+
+    const getDateLabel = () => {
+        if (!fechaInicio && !fechaFin) return "Histórico completo";
+        if (fechaInicio === fechaFin) return `Día: ${fechaInicio}`;
+        return `Del ${fechaInicio} al ${fechaFin}`;
+    };
 
     return (
         <div className="space-y-6">
@@ -74,12 +198,20 @@ const PrinterPanel = () => {
                                 <BarChart3 className="text-white" size={28} />
                             </div>
                             <div>
-                                <h2 className="text-2xl font-bold text-slate-800">Ranking de Impresiones</h2>
-                                <p className="text-sm text-gray-500">Volumen de impresión por computadora</p>
+                                <h2 className="text-2xl font-bold text-slate-800">Impresiones por Computadora</h2>
+                                <p className="text-sm text-gray-500">{getDateLabel()}</p>
                             </div>
                         </div>
 
                         <div className="flex items-center gap-3">
+                            <button
+                                onClick={handlePrint}
+                                disabled={loading || (viewMode === "daily" ? filteredDaily.length === 0 : filteredRanking.length === 0)}
+                                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-700 to-red-800 text-white rounded-lg hover:shadow-lg transition-all shadow-sm font-medium disabled:opacity-50"
+                            >
+                                <Download size={18} />
+                                Imprimir Reporte
+                            </button>
                             <button
                                 onClick={fetchData}
                                 disabled={loading}
@@ -96,7 +228,7 @@ const PrinterPanel = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6 bg-gray-50/50">
                     <StatCard
                         icon={<FileText size={24} />}
-                        label={dateRange === "today" ? "Páginas Hoy" : (dateRange === "month" ? "Páginas este Mes" : "Total Páginas Histórico")}
+                        label="Total Páginas"
                         value={ranking.reduce((acc, curr) => acc + curr.total_pages, 0).toLocaleString()}
                         color="blue"
                     />
@@ -118,12 +250,13 @@ const PrinterPanel = () => {
             {/* Filters & Search */}
             <div className="bg-white rounded-xl shadow-md p-4 border border-gray-100">
                 <div className="flex flex-wrap items-center gap-4">
+                    {/* Search */}
                     <div className="flex-1 min-w-[250px]">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                             <input
                                 type="text"
-                                placeholder="Buscar por hostname, IP o área..."
+                                placeholder="Buscar por hostname, IP, área o usuario..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
@@ -131,59 +264,145 @@ const PrinterPanel = () => {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+                    {/* Quick Presets */}
+                    <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+                        {[
+                            { key: "today", label: "Hoy" },
+                            { key: "week", label: "Semana" },
+                            { key: "month", label: "Mes" },
+                            { key: "all", label: "Todo" }
+                        ].map(p => (
+                            <button
+                                key={p.key}
+                                onClick={() => applyPreset(p.key)}
+                                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${activePreset === p.key ? "bg-white text-red-700 shadow-sm" : "text-gray-600 hover:text-gray-900"}`}
+                            >
+                                {p.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Date Range Pickers */}
+                    <div className="flex items-center gap-2">
+                        <Calendar size={16} className="text-gray-400" />
+                        <input
+                            type="date"
+                            value={fechaInicio}
+                            onChange={(e) => handleDateChange("inicio", e.target.value)}
+                            className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        />
+                        <span className="text-gray-400 text-sm">→</span>
+                        <input
+                            type="date"
+                            value={fechaFin}
+                            onChange={(e) => handleDateChange("fin", e.target.value)}
+                            className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                        />
+                    </div>
+
+                    {/* View Mode Toggle */}
+                    <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
                         <button
-                            onClick={() => setDateRange("today")}
-                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${dateRange === "today" ? "bg-white text-red-700 shadow-sm" : "text-gray-600 hover:text-gray-900"}`}
+                            onClick={() => setViewMode("ranking")}
+                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === "ranking" ? "bg-white text-red-700 shadow-sm" : "text-gray-600 hover:text-gray-900"}`}
                         >
-                            Hoy
+                            Ranking
                         </button>
                         <button
-                            onClick={() => setDateRange("month")}
-                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${dateRange === "month" ? "bg-white text-red-700 shadow-sm" : "text-gray-600 hover:text-gray-900"}`}
+                            onClick={() => setViewMode("daily")}
+                            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${viewMode === "daily" ? "bg-white text-red-700 shadow-sm" : "text-gray-600 hover:text-gray-900"}`}
                         >
-                            Este Mes
-                        </button>
-                        <button
-                            onClick={() => setDateRange("all")}
-                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${dateRange === "all" ? "bg-white text-red-700 shadow-sm" : "text-gray-600 hover:text-gray-900"}`}
-                        >
-                            Histórico
+                            Por Día
                         </button>
                     </div>
                 </div>
             </div>
 
             {/* Table Area */}
-            <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden" ref={printRef}>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-semibold tracking-wider">
                             <tr>
-                                <th className="px-6 py-4 w-16 text-center">Rank</th>
-                                <th className="px-6 py-4">Computadora (Hostname)</th>
-                                <th className="px-6 py-4">IP Address</th>
-                                <th className="px-6 py-4">Área / Ubicación</th>
-                                <th className="px-6 py-4 text-right">Trabajos (Docs)</th>
-                                <th className="px-6 py-4 text-right">Páginas Impresas</th>
+                                {viewMode === "daily" ? (
+                                    <th className="px-6 py-4">Fecha</th>
+                                ) : (
+                                    <th className="px-6 py-4 w-16 text-center">Rank</th>
+                                )}
+                                <th className="px-6 py-4">Hostname</th>
+                                <th className="px-6 py-4">Usuario</th>
+                                <th className="px-6 py-4">Área</th>
+                                <th className="px-6 py-4">Sede / Piso</th>
+                                <th className="px-6 py-4 text-right">Trabajos</th>
+                                <th className="px-6 py-4 text-right">Páginas</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {loading && ranking.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                                         <RefreshCw className="animate-spin h-8 w-8 text-red-600 mx-auto mb-4" />
                                         Cargando estadísticas...
                                     </td>
                                 </tr>
-                            ) : filteredRanking.length === 0 ? (
+                            ) : (viewMode === "daily" ? filteredDaily : filteredRanking).length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                                         <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                                         <p className="font-medium text-gray-600">No hay registros de impresión</p>
                                         <p className="text-sm">Intenta cambiar los filtros de búsqueda o fecha.</p>
                                     </td>
                                 </tr>
+                            ) : viewMode === "daily" ? (
+                                filteredDaily.map((item, index) => (
+                                    <motion.tr
+                                        key={`${item.fecha}-${item.activo_id}`}
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: index * 0.02 }}
+                                        className="hover:bg-red-50/30 transition-colors"
+                                    >
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-md text-xs font-medium">
+                                                <Calendar size={12} />
+                                                {item.fecha}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-8 w-8 rounded bg-red-100 flex items-center justify-center text-red-700">
+                                                    <Laptop size={16} />
+                                                </div>
+                                                <span className="font-bold text-gray-800">{item.hostname}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm text-gray-800">{item.usuario_detectado || '-'}</span>
+                                                {item.usuario_nombre_completo && item.usuario_nombre_completo !== item.usuario_detectado && (
+                                                    <span className="text-xs text-gray-500">{item.usuario_nombre_completo}</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                                                <MapPin size={14} className="text-gray-400" />
+                                                {item.area || '-'}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                            {item.edificio_nombre ? `${item.edificio_nombre} - ${item.piso_nombre || ''}` : (item.piso_nombre || '-')}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right font-medium text-gray-600">
+                                            {item.total_jobs.toLocaleString()}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                                            <span className="inline-flex px-3 py-1 bg-red-100 text-red-800 rounded-full font-bold text-sm">
+                                                {item.total_pages.toLocaleString()} pág
+                                            </span>
+                                        </td>
+                                    </motion.tr>
+                                ))
                             ) : (
                                 filteredRanking.map((item, index) => (
                                     <motion.tr
@@ -212,14 +431,22 @@ const PrinterPanel = () => {
                                                 <span className="font-bold text-gray-800">{item.hostname}</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap font-mono text-sm text-gray-600">
-                                            {item.ip_address || '-'}
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="flex flex-col">
+                                                <span className="text-sm text-gray-800">{item.usuario_detectado || '-'}</span>
+                                                {item.usuario_nombre_completo && item.usuario_nombre_completo !== item.usuario_detectado && (
+                                                    <span className="text-xs text-gray-500">{item.usuario_nombre_completo}</span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-1.5 text-sm text-gray-600">
                                                 <MapPin size={14} className="text-gray-400" />
-                                                {item.area || 'Sin Área Asignada'}
+                                                {item.area || '-'}
                                             </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                            {item.edificio_nombre ? `${item.edificio_nombre} - ${item.piso_nombre || ''}` : (item.piso_nombre || '-')}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right font-medium text-gray-600">
                                             {item.total_jobs.toLocaleString()}
@@ -235,6 +462,23 @@ const PrinterPanel = () => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Footer totals */}
+                {(viewMode === "daily" ? filteredDaily : filteredRanking).length > 0 && (
+                    <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+                        <span className="text-sm text-gray-600">
+                            {(viewMode === "daily" ? filteredDaily : filteredRanking).length} registros
+                        </span>
+                        <div className="flex items-center gap-6 text-sm">
+                            <span className="text-gray-600">
+                                Total Trabajos: <strong>{(viewMode === "daily" ? filteredDaily : filteredRanking).reduce((a, c) => a + c.total_jobs, 0).toLocaleString()}</strong>
+                            </span>
+                            <span className="text-red-700 font-bold">
+                                Total Páginas: {(viewMode === "daily" ? filteredDaily : filteredRanking).reduce((a, c) => a + c.total_pages, 0).toLocaleString()}
+                            </span>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

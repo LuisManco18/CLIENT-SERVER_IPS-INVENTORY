@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, Image as ImageIcon, Plus, Trash2, Edit, Building2, Sparkles } from 'lucide-react';
+import { X, Upload, Image as ImageIcon, Plus, Trash2, Edit, Building2, Layers } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
 import { API_ENDPOINTS } from '../config';
@@ -10,6 +10,7 @@ export default function FloorManager({ isOpen, onClose, onFloorCreated, embedded
     const [edificios, setEdificios] = useState([]);
     const [loading, setLoading] = useState(false);
     const [editingFloor, setEditingFloor] = useState(null);
+    const [floorImages, setFloorImages] = useState({}); // cache de imagenes por piso_id
 
     const [formData, setFormData] = useState({
         nombre: '',
@@ -33,8 +34,25 @@ export default function FloorManager({ isOpen, onClose, onFloorCreated, embedded
         try {
             const response = await axios.get(API_URL);
             setPisos(response.data);
+            // Cargar thumbnails de pisos que tienen imagen
+            response.data.forEach(piso => {
+                if (piso.mapa_filename && !floorImages[piso.id]) {
+                    loadFloorImage(piso.id);
+                }
+            });
         } catch (error) {
             console.error('Error loading floors:', error);
+        }
+    };
+
+    const loadFloorImage = async (pisoId) => {
+        try {
+            const res = await axios.get(`${API_URL}/${pisoId}/image`);
+            if (res.data?.mapa_imagen) {
+                setFloorImages(prev => ({ ...prev, [pisoId]: res.data.mapa_imagen }));
+            }
+        } catch (e) {
+            // Sin imagen, no hacer nada
         }
     };
 
@@ -105,13 +123,24 @@ export default function FloorManager({ isOpen, onClose, onFloorCreated, embedded
         }
     };
 
-    const handleEdit = (piso) => {
+    const handleEdit = async (piso) => {
         setEditingFloor(piso);
+        // Cargar imagen existente para la preview
+        let existingImage = floorImages[piso.id] || null;
+        if (!existingImage && piso.mapa_filename) {
+            try {
+                const res = await axios.get(`${API_URL}/${piso.id}/image`);
+                if (res.data?.mapa_imagen) {
+                    existingImage = res.data.mapa_imagen;
+                    setFloorImages(prev => ({ ...prev, [piso.id]: existingImage }));
+                }
+            } catch (e) { /* sin imagen */ }
+        }
         setFormData({
             nombre: piso.nombre,
             nivel: piso.nivel,
             edificio_id: piso.edificio_id,
-            mapa_imagen: null,
+            mapa_imagen: existingImage,
             mapa_filename: piso.mapa_filename
         });
     };
@@ -143,7 +172,7 @@ export default function FloorManager({ isOpen, onClose, onFloorCreated, embedded
                     <div className="relative flex justify-between items-center">
                         <div className="flex items-center gap-4">
                             <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                                <Sparkles size={28} />
+                                <Layers size={28} />
                             </div>
                             <div>
                                 <h2 className="text-3xl font-bold">Gestión de Pisos</h2>
@@ -174,7 +203,7 @@ export default function FloorManager({ isOpen, onClose, onFloorCreated, embedded
 
                     <div className="grid grid-cols-3 gap-6 mb-6">
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">🏢 Edificio</label>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Edificio</label>
                             <select
                                 value={formData.edificio_id}
                                 onChange={(e) => setFormData({ ...formData, edificio_id: parseInt(e.target.value) })}
@@ -189,7 +218,7 @@ export default function FloorManager({ isOpen, onClose, onFloorCreated, embedded
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">📝 Nombre</label>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Nombre del Piso</label>
                             <input
                                 type="text"
                                 value={formData.nombre}
@@ -201,7 +230,7 @@ export default function FloorManager({ isOpen, onClose, onFloorCreated, embedded
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-2">🔢 Nivel</label>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Nivel</label>
                             <input
                                 type="number"
                                 value={formData.nivel}
@@ -214,15 +243,15 @@ export default function FloorManager({ isOpen, onClose, onFloorCreated, embedded
 
                     {/* Image Upload - BEAUTIFUL DRAG DROP */}
                     <div className="mb-6">
-                        <label className="block text-sm font-bold text-gray-700 mb-3">🖼️ Plano del Piso</label>
+                        <label className="block text-sm font-bold text-gray-700 mb-3">Plano del Piso (imagen)</label>
                         <div
                             {...getRootProps()}
                             className={`
                                 relative border-3 border-dashed rounded-2xl p-12 text-center cursor-pointer 
                                 transition-all duration-300 overflow-hidden group
                                 ${isDragActive
-                                    ? 'border-primary-blue bg-gradient-to-br from-primary-blue/5 to-primary-purple/5 scale-105'
-                                    : 'border-gray-300 hover:border-primary-blue/50 bg-gradient-to-br from-gray-50 to-white hover:shadow-xl'
+                                    ? 'border-teal-500 bg-gradient-to-br from-teal-50 to-teal-100/50 scale-[1.02]'
+                                    : 'border-slate-400 hover:border-teal-500 bg-gradient-to-br from-slate-50 to-white hover:shadow-xl'
                                 }
                             `}
                         >
@@ -259,7 +288,7 @@ export default function FloorManager({ isOpen, onClose, onFloorCreated, embedded
                                     <motion.div
                                         animate={{ y: isDragActive ? -10 : 0 }}
                                         transition={{ type: "spring", stiffness: 300 }}
-                                        className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-primary-blue to-primary-purple flex items-center justify-center shadow-xl"
+                                        className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center shadow-xl"
                                     >
                                         <Upload className="text-white" size={36} />
                                     </motion.div>
@@ -279,9 +308,9 @@ export default function FloorManager({ isOpen, onClose, onFloorCreated, embedded
                         <button
                             type="submit"
                             disabled={loading}
-                            className="flex-1 px-6 py-4 bg-gradient-to-r from-primary-blue to-primary-purple text-white rounded-xl hover:shadow-2xl hover:scale-105 transition-all font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 px-6 py-4 bg-gradient-to-r from-red-700 to-red-800 text-white rounded-xl hover:shadow-2xl hover:scale-105 transition-all font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {loading ? '⏳ Guardando...' : (editingFloor ? '✨ Actualizar Piso' : '🚀 Crear Piso')}
+                            {loading ? 'Guardando...' : (editingFloor ? 'Guardar Cambios' : 'Crear Piso')}
                         </button>
 
                         {editingFloor && (
@@ -340,15 +369,26 @@ export default function FloorManager({ isOpen, onClose, onFloorCreated, embedded
                                 </div>
 
                                 {piso.mapa_filename ? (
-                                    <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg border border-green-200">
-                                        <ImageIcon size={16} className="text-green-600" />
-                                        <span className="text-xs font-medium text-green-700 truncate flex-1">{piso.mapa_filename}</span>
-                                        <button
-                                            onClick={() => handleEdit(piso)}
-                                            className="text-xs text-primary-blue hover:underline font-medium"
-                                        >
-                                            Cambiar
-                                        </button>
+                                    <div className="space-y-2">
+                                        {floorImages[piso.id] && (
+                                            <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
+                                                <img
+                                                    src={floorImages[piso.id]}
+                                                    alt={`Plano ${piso.nombre}`}
+                                                    className="w-full h-32 object-contain bg-gray-50 hover:scale-105 transition-transform duration-300"
+                                                />
+                                            </div>
+                                        )}
+                                        <div className="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg border border-green-200">
+                                            <ImageIcon size={16} className="text-green-600" />
+                                            <span className="text-xs font-medium text-green-700 truncate flex-1">{piso.mapa_filename}</span>
+                                            <button
+                                                onClick={() => handleEdit(piso)}
+                                                className="text-xs text-primary-blue hover:underline font-medium"
+                                            >
+                                                Cambiar
+                                            </button>
+                                        </div>
                                     </div>
                                 ) : (
                                     <button

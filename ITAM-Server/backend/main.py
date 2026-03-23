@@ -2,10 +2,11 @@ import time
 from datetime import datetime, timezone
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from routers import dashboard, floors, buildings, auth, areas, reports, history as history_router, glossary as glossary_router, catalogs, users, remote, printers, audit as audit_router, print_stats as print_stats_router
+from routers import dashboard, floors, buildings, auth, areas, reports, history as history_router, glossary as glossary_router, catalogs, users, remote, printers, audit as audit_router, print_stats as print_stats_router, notifications as notifications_router
 from middleware import RateLimitMiddleware, AuditMiddleware
 from utils.history import log_asset_change
 from utils.parser import parse_hostname_logic
+from models import locations
 
 # ... (omitted code) ...
 
@@ -15,7 +16,7 @@ from sqlalchemy.orm import Session
 from database import engine, get_db, Base
 from config import settings
 # Importar TODOS los modelos antes de create_all para que SQLAlchemy los detecte
-from models import assets, locations, users as users_model, history, glossary, permisos, printers as printers_model, audit as audit_model
+from models import assets, locations, users as users_model, history, glossary, permisos, printers as printers_model, audit as audit_model, notifications as notifications_model
 from models.print_stats import PrintStatsPC
 from schemas import asset_schema
 
@@ -99,10 +100,27 @@ def recibir_reporte(reporte: asset_schema.AssetReportCreate, db: Session = Depen
         log_asset_change(db, activo.id, "usuario", activo.usuario_detectado, reporte.usuario)
         log_asset_change(db, activo.id, "os", activo.sistema_operativo, reporte.sistema_operativo)
         
+        # Detectar si la PC estuvo apagada (último reporte fue hace más de 10 min)
+        if activo.ultimo_reporte:
+            ahora = datetime.now(timezone.utc)
+            ultimo = activo.ultimo_reporte
+            if ultimo.tzinfo is None:
+                ultimo = ultimo.replace(tzinfo=timezone.utc)
+            minutos_offline = (ahora - ultimo).total_seconds() / 60
+            if minutos_offline > 10:
+                # Registrar apagado (momento aproximado) y encendido (ahora)
+                log_asset_change(db, activo.id, "apagado", 
+                    ultimo.strftime("%Y-%m-%d %H:%M"), 
+                    f"Offline por {int(minutos_offline)} min")
+                log_asset_change(db, activo.id, "encendido", 
+                    None, 
+                    ahora.strftime("%Y-%m-%d %H:%M"))
+        
         activo.hostname = reporte.hostname
         activo.ip_address = reporte.ip_address
         activo.mac_address = reporte.mac_address
         activo.usuario_detectado = reporte.usuario
+        activo.usuario_nombre_completo = reporte.usuario_nombre_completo
         activo.marca = reporte.marca
         activo.modelo = reporte.modelo
         activo.sistema_operativo = reporte.sistema_operativo
@@ -114,6 +132,20 @@ def recibir_reporte(reporte: asset_schema.AssetReportCreate, db: Session = Depen
                 log_asset_change(db, activo.id, "area", activo.area, parsed_area)
                 activo.area = parsed_area
 
+        # Auto-asignar piso desde hostname (dígitos 5-6) si es dominio y no tiene piso asignado
+        if en_dominio and parsed_info.get("valid_format") and not activo.piso_id:
+            piso_val = parsed_info["parts"].get("piso_val")
+            if piso_val:
+                try:
+                    piso_nivel = int(piso_val)
+                    piso_obj = db.query(locations.Piso).filter(
+                        locations.Piso.nivel == piso_nivel
+                    ).first()
+                    if piso_obj:
+                        activo.piso_id = piso_obj.id
+                except ValueError:
+                    pass
+
         # Forzar actualización de ultimo_reporte SIEMPRE (incluso si los datos no cambian)
         activo.ultimo_reporte = datetime.now(timezone.utc)
     else:
@@ -124,6 +156,7 @@ def recibir_reporte(reporte: asset_schema.AssetReportCreate, db: Session = Depen
             ip_address=reporte.ip_address,
             mac_address=reporte.mac_address,
             usuario_detectado=reporte.usuario,
+            usuario_nombre_completo=reporte.usuario_nombre_completo,
             marca=reporte.marca,
             modelo=reporte.modelo,
             sistema_operativo=reporte.sistema_operativo,
@@ -136,6 +169,20 @@ def recibir_reporte(reporte: asset_schema.AssetReportCreate, db: Session = Depen
         db.commit() # Commit para obtener el ID
         db.refresh(nuevo_activo)
         activo = nuevo_activo
+
+        # Auto-asignar piso desde hostname para nuevo activo en dominio
+        if en_dominio and parsed_info.get("valid_format"):
+            piso_val = parsed_info["parts"].get("piso_val")
+            if piso_val:
+                try:
+                    piso_nivel = int(piso_val)
+                    piso_obj = db.query(locations.Piso).filter(
+                        locations.Piso.nivel == piso_nivel
+                    ).first()
+                    if piso_obj:
+                        activo.piso_id = piso_obj.id
+                except ValueError:
+                    pass
         
         # Historial de creación (opcional)
         log_asset_change(db, activo.id, "creation", None, "Activo creado")
@@ -204,5 +251,6 @@ app.include_router(remote.router)
 app.include_router(printers.router)
 app.include_router(audit_router.router)
 app.include_router(print_stats_router.router)
+app.include_router(notifications_router.router)
 
 # Trigger reload for schema update

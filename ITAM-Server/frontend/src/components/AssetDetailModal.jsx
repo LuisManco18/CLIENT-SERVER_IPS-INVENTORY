@@ -135,6 +135,9 @@ export default function AssetDetailModal({ isOpen, onClose, asset, onOpenHistory
                                             <div>
                                                 <p className="text-xs text-gray-500 font-medium">Usuario Detectado</p>
                                                 <p className="text-sm font-semibold text-gray-900">{asset.usuario_detectado || 'N/A'}</p>
+                                                {asset.usuario_nombre_completo && asset.usuario_nombre_completo !== asset.usuario_detectado && (
+                                                    <p className="text-xs text-gray-500 mt-0.5">{asset.usuario_nombre_completo}</p>
+                                                )}
                                             </div>
                                             <div>
                                                 <p className="text-xs text-gray-500 font-medium">Unido a Dominio</p>
