@@ -131,6 +131,8 @@ export default function MapView({ onOpenFloorManager, readOnly = false }) {
     // 2. Manejador para soltar un activo NUEVO (desde la lista)
     const handleDrop = async (e) => {
         e.preventDefault();
+        e.stopPropagation();
+        if (readOnly) return;
 
         // Obtener datos del activo arrastrado
         const assetData = e.dataTransfer.getData('asset');
@@ -164,12 +166,24 @@ export default function MapView({ onOpenFloorManager, readOnly = false }) {
 
     // 3. Configurar datos al iniciar arrastre desde la lista
     const handleDragStart = (e, asset) => {
-        e.dataTransfer.setData('asset', JSON.stringify(asset));
-        e.dataTransfer.effectAllowed = 'move';
+        if (readOnly) {
+            e.preventDefault();
+            return;
+        }
+        try {
+            e.dataTransfer.setData('asset', JSON.stringify(asset));
+            e.dataTransfer.effectAllowed = 'move';
+        } catch (error) {
+            console.error("Error setting drag data", error);
+        }
     };
 
     const handleDragOver = (e) => {
         e.preventDefault(); // Necesario para permitir el drop
+        if (readOnly) {
+            e.dataTransfer.dropEffect = 'none';
+            return;
+        }
         e.dataTransfer.dropEffect = 'move';
     };
 
@@ -398,8 +412,8 @@ export default function MapView({ onOpenFloorManager, readOnly = false }) {
                                 width: '100%',
                                 height: '100%',
                             }}
-                            onDragOver={readOnly ? undefined : handleDragOver}
-                            onDrop={readOnly ? undefined : handleDrop}
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
                             ref={mapContainerRef}
                         >
                             {pisoImage ? (

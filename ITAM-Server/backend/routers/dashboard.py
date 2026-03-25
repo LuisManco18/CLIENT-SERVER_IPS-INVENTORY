@@ -134,7 +134,10 @@ def listar_activos(
 
 # --- ENDPOINT 3: GUARDAR POSICIÓN EN MAPA ---
 @router.put("/{serial}/position")
-def guardar_posicion(serial: str, pos: PositionUpdate, db: Session = Depends(get_db)):
+def guardar_posicion(serial: str, pos: PositionUpdate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    if not current_user.es_superadmin and not current_user.perm_mapa_editar:
+        raise HTTPException(status_code=403, detail="No tienes permisos para editar el mapa")
+        
     activo = db.query(assets.Activo).filter(assets.Activo.serial_number == serial).first()
     
     if not activo:
@@ -160,7 +163,10 @@ def guardar_posicion(serial: str, pos: PositionUpdate, db: Session = Depends(get
 
 # --- ENDPOINT 3.5: QUITAR UBICACIÓN DEL MAPA ---
 @router.delete("/{serial}/position")
-def quitar_ubicacion(serial: str, db: Session = Depends(get_db)):
+def quitar_ubicacion(serial: str, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    if not current_user.es_superadmin and not current_user.perm_mapa_editar:
+        raise HTTPException(status_code=403, detail="No tienes permisos para editar el mapa")
+        
     """Quita un activo del mapa (lo devuelve a 'sin ubicar')"""
     activo = db.query(assets.Activo).filter(assets.Activo.serial_number == serial).first()
     

@@ -14,7 +14,14 @@ Arquitectura MVC:
 import time
 import sys
 import signal
+import os
 from pathlib import Path
+
+# Add winreg for Windows startup persistence
+try:
+    import winreg
+except ImportError:
+    winreg = None
 
 from collector import SystemCollector
 from network import NetworkService
@@ -62,6 +69,9 @@ class ITAMAgent:
             logger.info("Servidor de comandos remotos activo - esperando instrucciones...")
         else:
             logger.warning("No se pudo iniciar el servidor de comandos remotos")
+            
+        # Configurar autostart en Windows (Persistencia a reinicios/apagados)
+        self._enable_autostart()
         
         # Ciclo principal
         cycle_count = 0
@@ -121,6 +131,33 @@ class ITAMAgent:
             success = self.network.send_report(data)
             return success
         return False
+        
+    def _enable_autostart(self):
+        """Registra el ejecutable en el inicio de Windows para iniciar con el PC"""
+        if not winreg:
+            return
+            
+        try:
+            # Solo agregar al autostart si estamos en la versión compilada (.exe)
+            if getattr(sys, 'frozen', False):
+                exe_path = sys.executable
+            else:
+                return
+                
+            # Intentar primero HKEY_LOCAL_MACHINE (Aplica a todos los usuarios, requiere Admin)
+            try:
+                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
+                winreg.SetValueEx(key, "ITAMAgent", 0, winreg.REG_SZ, f'"{exe_path}"')
+                winreg.CloseKey(key)
+                logger.info("Autostart configurado globalmente (HKLM).")
+            except PermissionError:
+                # Si falla por falta de permisos, usar HKEY_CURRENT_USER (Solo este usuario)
+                key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE)
+                winreg.SetValueEx(key, "ITAMAgent", 0, winreg.REG_SZ, f'"{exe_path}"')
+                winreg.CloseKey(key)
+                logger.info("Autostart configurado para el usuario actual (HKCU).")
+        except Exception as e:
+            logger.warning(f"No se pudo configurar el autostart: {e}")
 
 def main():
     """Punto de entrada principal"""

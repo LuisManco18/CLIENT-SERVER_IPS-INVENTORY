@@ -186,14 +186,21 @@ class SystemCollector:
             }
     
     def _get_print_info(self, c) -> list:
-        """Obtiene información de impresiones por impresora usando WMI"""
+        """Obtiene información de impresiones por impresora usando EventLog y fallback WMI"""
         try:
             print_stats = []
             
-            # Obtener contadores del spooler de impresión
-            perf_data = c.Win32_PerfFormattedData_Spooler_PrintQueue()
+            # Activar el log Operacional de PrintService silenciosamente
+            try:
+                import subprocess
+                subprocess.run(
+                    ["wevtutil", "sl", "Microsoft-Windows-PrintService/Operational", "/e:true"],
+                    check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+            except Exception:
+                pass
             
-            # Obtener lista de impresoras para datos adicionales
             printers = {}
             try:
                 for p in c.Win32_Printer():
@@ -201,52 +208,115 @@ class SystemCollector:
                         "port": p.PortName or "",
                         "driver": p.DriverName or "",
                         "is_network": bool(p.Network),
-                        "is_default": bool(p.Default)
+                        "is_default": bool(p.Default),
+                        "total_jobs": 0,
+                        "total_pages": 0
                     }
             except Exception:
                 pass
             
-            for queue in perf_data:
-                nombre = queue.Name
-                
-                # Ignorar la cola _Total y colas virtuales
-                if nombre == "_Total":
-                    continue
-                
-                # Filtrar impresoras virtuales
-                virtual_keywords = ["Microsoft", "OneNote", "XPS", "PDF", "Fax", "nul"]
-                if any(kw.lower() in nombre.lower() for kw in virtual_keywords):
-                    continue
-                
-                total_jobs = int(queue.TotalJobsPrinted or 0)
-                total_pages = int(queue.TotalPagesPrinted or 0)
-                
-                # Solo reportar impresoras con actividad
-                if total_jobs == 0 and total_pages == 0:
-                    continue
-                
-                printer_info = printers.get(nombre, {})
-                
-                stat = {
-                    "printer_name": nombre,
-                    "total_jobs": total_jobs,
-                    "total_pages": total_pages,
-                    "port": printer_info.get("port", ""),
-                    "driver": printer_info.get("driver", ""),
-                    "is_network": printer_info.get("is_network", False),
-                    "is_default": printer_info.get("is_default", False)
+            # Script PS para extraer EventID 307 (Impresiones) del log Operacional
+            ps_script = """
+            $ErrorActionPreference = 'SilentlyContinue'
+            $events = Get-WinEvent -LogName 'Microsoft-Windows-PrintService/Operational' -FilterXPath "*[System[EventID=307]]"
+            if (-not $events) { return '[]' }
+            $results = @()
+            foreach ($e in $events) {
+                $printerName = $e.Properties[4].Value
+                $pages = 0
+                if ($e.Properties[7].Value) {
+                    $pages = [int]$e.Properties[7].Value
                 }
-                print_stats.append(stat)
+                $results += [PSCustomObject]@{
+                    Printer = $printerName
+                    Pages = $pages
+                }
+            }
+            $results | Group-Object -Property Printer | ForEach-Object {
+                [PSCustomObject]@{
+                    printer_name = $_.Name
+                    total_jobs = $_.Group.Count
+                    total_pages = ($_.Group | Measure-Object -Property Pages -Sum).Sum
+                }
+            } | ConvertTo-Json -Compress
+            """
+            
+            import json
+            uso_eventlog = False
+            try:
+                result = subprocess.run(
+                    ["powershell", "-NoProfile", "-Command", ps_script],
+                    capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                if result.stdout.strip() and result.stdout.strip() != '[]':
+                    data = json.loads(result.stdout)
+                    if isinstance(data, dict):
+                        data = [data]
+                    for d in data:
+                        name = d.get('printer_name')
+                        if name in printers:
+                            printers[name]['total_jobs'] = d.get('total_jobs', 0)
+                            printers[name]['total_pages'] = d.get('total_pages', 0)
+                        else:
+                            printers[name] = {
+                                "port": "", "driver": "", "is_network": False, "is_default": False,
+                                "total_jobs": d.get('total_jobs', 0),
+                                "total_pages": d.get('total_pages', 0)
+                            }
+                    uso_eventlog = True
+            except Exception as e:
+                logger.warning(f"Error parseando EventLog de impresoras: {e}")
+            
+            # Fallback a WMI viejo si EventLog falla (o está vacío al ser recién activado)
+            if not uso_eventlog:
+                try:
+                    perf_data = c.Win32_PerfFormattedData_Spooler_PrintQueue()
+                    for queue in perf_data:
+                        nombre = queue.Name
+                        if nombre == "_Total": continue
+                        
+                        virtual_keywords = ["Microsoft", "OneNote", "XPS", "PDF", "Fax", "nul"]
+                        if any(kw.lower() in nombre.lower() for kw in virtual_keywords):
+                            continue
+                            
+                        # WMI usa Acumulado histórico 
+                        t_jobs = int(queue.TotalJobsPrinted or 0)
+                        t_pages = int(queue.TotalPagesPrinted or 0)
+                        if t_jobs > 0 or t_pages > 0:
+                            if nombre in printers:
+                                printers[nombre]["total_jobs"] = max(t_jobs, printers[nombre]["total_jobs"])
+                                printers[nombre]["total_pages"] = max(t_pages, printers[nombre]["total_pages"])
+                            else:
+                                printers[nombre] = {
+                                    "port": "", "driver": "", "is_network": False, "is_default": False,
+                                    "total_jobs": t_jobs, "total_pages": t_pages
+                                }
+                except:
+                    pass
+
+            for nombre, props in printers.items():
+                if props["total_jobs"] > 0 or props["total_pages"] > 0:
+                    virtual_keywords = ["Microsoft", "OneNote", "XPS", "PDF", "Fax", "nul"]
+                    if not any(kw.lower() in nombre.lower() for kw in virtual_keywords):
+                        print_stats.append({
+                            "printer_name": nombre,
+                            "total_jobs": props["total_jobs"],
+                            "total_pages": props["total_pages"],
+                            "port": props.get("port", ""),
+                            "driver": props.get("driver", ""),
+                            "is_network": props.get("is_network", False),
+                            "is_default": props.get("is_default", False)
+                        })
             
             if print_stats:
-                logger.info(f"  ✓ Impresoras detectadas: {len(print_stats)}")
+                logger.info(f"  ✓ Impresoras detectadas con actividad: {len(print_stats)}")
                 for ps in print_stats:
-                    logger.info(f"    - {ps['printer_name']}: {ps['total_jobs']} trabajos, {ps['total_pages']} páginas")
+                    logger.info(f"    - {ps['printer_name']}: {ps['total_jobs']} trab, {ps['total_pages']} pag")
             
             return print_stats
             
         except Exception as e:
-            logger.warning(f"Error obteniendo datos de impresión: {e}")
+            logger.warning(f"Error general obteniendo datos de impresión: {e}")
             return []
     
     def _validate_data(self, data: Dict) -> bool:

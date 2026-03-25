@@ -26,9 +26,9 @@ def build():
     # Verificar que PyInstaller está instalado
     try:
         import PyInstaller
-        print(f"✓ PyInstaller {PyInstaller.__version__} encontrado")
+        print(f"[OK] PyInstaller {PyInstaller.__version__} encontrado")
     except ImportError:
-        print("✗ PyInstaller no está instalado.")
+        print("[FAIL] PyInstaller no está instalado.")
         print("  Ejecuta: pip install pyinstaller")
         sys.exit(1)
     
@@ -66,7 +66,7 @@ def build():
     result = subprocess.run(cmd, cwd=str(project_dir))
     
     if result.returncode != 0:
-        print("\n✗ Error durante la compilación")
+        print("\n[FAIL] Error durante la compilación")
         sys.exit(1)
     
     # Copiar config.json junto al ejecutable
@@ -77,7 +77,7 @@ def build():
         config_dst.unlink()
     
     shutil.copy2(config_src, config_dst)
-    print(f"\n✓ config.json copiado a {config_dst}")
+    print(f"\n[OK] config.json copiado a {config_dst}")
     
     # Resumen
     exe_path = dist_dir / "ITAMAgent.exe"
@@ -85,7 +85,7 @@ def build():
         size_mb = exe_path.stat().st_size / (1024 * 1024)
         print()
         print("=" * 60)
-        print("  ✓ BUILD EXITOSO")
+        print("  [OK] BUILD EXITOSO")
         print("=" * 60)
         print(f"  Ejecutable: {exe_path}")
         print(f"  Tamaño:     {size_mb:.1f} MB")
@@ -93,11 +93,11 @@ def build():
         print()
         print("  PARA DESPLEGAR EN OTRAS PCs:")
         print("  1. Copia ITAMAgent.exe y config.json a la PC destino")
-        print("  2. Edita config.json → cambia 'api_url' a la IP del servidor")
+        print("  2. Edita config.json -> cambia 'api_url' a la IP del servidor")
         print("  3. Ejecuta ITAMAgent.exe como Administrador")
         print("=" * 60)
     else:
-        print("\n✗ No se encontró el ejecutable generado")
+        print("\n[FAIL] No se encontró el ejecutable generado")
         sys.exit(1)
 
 

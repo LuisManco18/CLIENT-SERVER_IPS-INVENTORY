@@ -205,8 +205,14 @@ def recibir_reporte(reporte: asset_schema.AssetReportCreate, db: Session = Depen
                     # Calcular delta (impresiones nuevas desde última lectura)
                     if pd.total_jobs > stat.jobs_acumulados:
                         stat.total_jobs += (pd.total_jobs - stat.jobs_acumulados)
+                    elif pd.total_jobs < stat.jobs_acumulados: # Manejo de reinicio de contador
+                        stat.total_jobs += pd.total_jobs
+                        
                     if pd.total_pages > stat.pages_acumuladas:
                         stat.total_pages += (pd.total_pages - stat.pages_acumuladas)
+                    elif pd.total_pages < stat.pages_acumuladas:
+                        stat.total_pages += pd.total_pages
+                        
                     stat.jobs_acumulados = pd.total_jobs
                     stat.pages_acumuladas = pd.total_pages
                     stat.ultima_lectura = datetime.now(timezone.utc)
