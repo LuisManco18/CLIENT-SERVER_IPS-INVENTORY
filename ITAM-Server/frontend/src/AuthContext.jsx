@@ -28,33 +28,38 @@ export const AuthProvider = ({ children }) => {
             const token = localStorage.getItem('access_token');
             if (token) {
                 try {
-                    // Validar token real con el backend
+                    // Validar token real con el backend y obtener permisos frescos
                     const response = await axios.get(`${API_ENDPOINTS.AUTH}/me`, {
                         headers: { Authorization: `Bearer ${token}` }
                     });
 
-                    // Asegurar que si el token es válido, seteamos el usuario con datos frescos de la BD
-                    const username = localStorage.getItem('username') || response.data.username;
-                    const fullName = localStorage.getItem('nombre_completo') || response.data.nombre_completo;
-                    const esSuperadmin = response.data.es_superadmin;
-                    const permisos = response.data.permisos || [];
-                    
-                    // Cargar permisos de sección desde localStorage o defaults
-                    const savedSecciones = localStorage.getItem('secciones');
-                    const secciones = savedSecciones ? JSON.parse(savedSecciones) : {
+                    const data = response.data;
+
+                    // Rebuild secciones from fresh data from /me
+                    const secciones = data.es_superadmin ? {
                         dashboard: true, inventario: true, mapa: true,
-                        mapa_editar: true, edificios: true, impresiones: true, usuarios: false
+                        mapa_editar: true, edificios: true, impresiones: true,
+                        usuarios: true, notificaciones: true
+                    } : {
+                        dashboard: data.perm_dashboard ?? true,
+                        inventario: data.perm_inventario ?? true,
+                        mapa: data.perm_mapa ?? true,
+                        mapa_editar: data.perm_mapa_editar ?? true,
+                        edificios: data.perm_edificios ?? true,
+                        impresiones: data.perm_impresiones ?? true,
+                        usuarios: data.perm_usuarios ?? false,
+                        notificaciones: data.perm_notificaciones ?? true,
                     };
 
+                    // Also update localStorage to stay in sync
+                    localStorage.setItem('secciones', JSON.stringify(secciones));
+
                     setUser({
-                        username,
-                        nombre_completo: fullName,
-                        es_superadmin: esSuperadmin,
-                        permisos,
-                        secciones: esSuperadmin ? {
-                            dashboard: true, inventario: true, mapa: true,
-                            mapa_editar: true, edificios: true, impresiones: true, usuarios: true
-                        } : secciones
+                        username: data.username,
+                        nombre_completo: data.nombre_completo,
+                        es_superadmin: data.es_superadmin,
+                        permisos: data.permisos || [],
+                        secciones
                     });
                 } catch (error) {
                     console.error("Sesión inválida o expirada", error);

@@ -170,8 +170,19 @@ def fix_database():
         print(f"Error updating superadmin perms: {e}")
         db.rollback()
 
+    # 11. Eliminar restricción de unicidad del email (para permitir múltiples usuarios sin email)
+    try:
+        print("Removing unique constraint from 'email' in 'admins'...")
+        # Drop the index that SQLAlchemy creates for unique=True columns
+        db.execute(text("DROP INDEX IF EXISTS ix_admins_email"))
+        db.commit()
+        print("OK Indice unico de email eliminado (multiples usuarios pueden tener email vacio).")
+    except Exception as e:
+        print(f"Note (email unique index): {e}")
+        db.rollback()
+
     db.close()
-    print("\n✅ Reparación completada. Reinicia el backend.")
+    print("\n>> Reparacion completada. Reinicia el backend.")
 
 if __name__ == "__main__":
     fix_database()

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Download, ChevronDown, Edit2, Circle, Upload, Check, X, Building2, Layers } from 'lucide-react';
+import { Search, Download, ChevronDown, Edit2, Circle, Upload, Check, X, Building2, Layers, MapPinOff } from 'lucide-react';
 import AssetIcon from './AssetIcon';
 import Pagination from './Pagination';
 import useRealTimeAssets from '../hooks/useRealTimeAssets';
@@ -187,6 +187,23 @@ export default function InventoryTable() {
         } catch (error) {
             console.error('Error downloading PDF:', error);
             alert('Error al descargar el reporte PDF');
+        }
+    };
+
+    // Quitar PC del mapa (limpiar pos_x, pos_y, piso_id)
+    const removeFromMap = async (e, pc) => {
+        e.stopPropagation();
+        if (!window.confirm(`¿Quitar "${pc.hostname}" del mapa?`)) return;
+        try {
+            await axios.delete(`${API_ENDPOINTS.ASSETS}/${pc.serial_number}/position`);
+            refresh();
+        } catch (error) {
+            if (error.response?.status === 403) {
+                alert('No tienes permisos para editar el mapa.');
+            } else {
+                console.error('Error quitando PC del mapa:', error);
+                alert('Error al quitar la PC del mapa.');
+            }
         }
     };
 
@@ -465,16 +482,28 @@ export default function InventoryTable() {
 
                                 {/* Actions */}
                                 <td className="px-6 py-4 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setHistoryAsset({ id: pc.id, hostname: pc.hostname });
-                                        }}
-                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-                                        title="Ver historial"
-                                    >
-                                        <Clock size={16} />
-                                    </button>
+                                    <div className="flex items-center justify-end gap-1">
+                                        {/* Quitar del mapa (solo si ya está asignada a un piso) */}
+                                        {pc.piso_id && (
+                                            <button
+                                                onClick={(e) => removeFromMap(e, pc)}
+                                                className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-full transition-colors"
+                                                title="Quitar del mapa"
+                                            >
+                                                <MapPinOff size={16} />
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setHistoryAsset({ id: pc.id, hostname: pc.hostname });
+                                            }}
+                                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                                            title="Ver historial"
+                                        >
+                                            <Clock size={16} />
+                                        </button>
+                                    </div>
                                 </td>
                             </motion.tr>
                         ))}

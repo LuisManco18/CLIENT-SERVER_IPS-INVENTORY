@@ -4,7 +4,7 @@ import axios from 'axios';
 import { API_ENDPOINTS } from '../config';
 import DraggableAsset from './DraggableAsset';
 import {
-    ZoomIn, ZoomOut, Maximize2, Grid3x3, Plus, Settings, Upload, Save
+    ZoomIn, ZoomOut, Maximize2, Grid3x3, Plus, Settings, Upload, Save, Search
 } from 'lucide-react';
 import AssetIcon from './AssetIcon';
 import useRealTimeAssets from '../hooks/useRealTimeAssets';
@@ -29,6 +29,7 @@ export default function MapView({ onOpenFloorManager, readOnly = false }) {
     const [zoom, setZoom] = useState(1);
     const [showGrid, setShowGrid] = useState(false);
     const [loadingImage, setLoadingImage] = useState(false);
+    const [sidebarSearch, setSidebarSearch] = useState(''); // search in unplaced PC list
 
     // Referencia al contenedor del mapa para cálculos de coordenadas
     const mapContainerRef = useRef(null);
@@ -239,7 +240,17 @@ export default function MapView({ onOpenFloorManager, readOnly = false }) {
     const handleResetZoom = () => setZoom(1);
 
     const activosEnPiso = activos.filter(pc => pc.piso_id === selectedPiso);
-    const activosSinAsignar = activos.filter(pc => !pc.piso_id);
+
+    // Filter unplaced assets by sidebar search term
+    const activosSinAsignarBase = activos.filter(pc => !pc.piso_id);
+    const activosSinAsignar = sidebarSearch.trim()
+        ? activosSinAsignarBase.filter(pc =>
+            pc.hostname?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
+            pc.usuario_detectado?.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
+            pc.ip_address?.includes(sidebarSearch) ||
+            pc.area?.toLowerCase().includes(sidebarSearch.toLowerCase())
+          )
+        : activosSinAsignarBase;
 
     const onlineCount = activosEnPiso.filter(a => a.is_online).length;
     const offlineCount = activosEnPiso.filter(a => !a.is_online).length;
@@ -328,8 +339,22 @@ export default function MapView({ onOpenFloorManager, readOnly = false }) {
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex-1 flex flex-col min-h-0">
                     <div className="p-3 border-b border-gray-200 flex justify-between items-center bg-gray-50 rounded-t-lg">
                         <h3 className="text-xs font-bold text-gray-700 uppercase">
-                            SIN UBICAR ({activosSinAsignar.length})
+                            SIN UBICAR ({activosSinAsignar.length}/{activosSinAsignarBase.length})
                         </h3>
+                    </div>
+
+                    {/* Search box */}
+                    <div className="px-2 pt-2 flex-shrink-0">
+                        <div className="relative">
+                            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Buscar hostname, usuario, IP..."
+                                value={sidebarSearch}
+                                onChange={(e) => setSidebarSearch(e.target.value)}
+                                className="w-full pl-6 pr-2 py-1.5 text-[11px] border border-gray-200 rounded focus:ring-1 focus:ring-red-400 focus:border-red-400 bg-white"
+                            />
+                        </div>
                     </div>
 
                     <div className="p-2 overflow-y-auto flex-1 space-y-2 custom-scrollbar">

@@ -87,14 +87,14 @@ def login(credentials: auth_schema.LoginRequest, db: Session = Depends(get_db)):
         "perm_notificaciones": True if user.es_superadmin else (user.perm_notificaciones if user.perm_notificaciones is not None else True),
     }
 
-@router.get("/me", response_model=auth_schema.UserResponse)
-def get_current_user(
+@router.get("/me")
+def get_current_user_me(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ):
     """
-    Obtiene información del usuario actual
-    Requiere token JWT válido
+    Obtiene informacion del usuario actual con todos sus permisos
+    Requiere token JWT valido
     """
     token = credentials.credentials
     payload = verify_token(token)
@@ -102,14 +102,14 @@ def get_current_user(
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token inválido o expirado"
+            detail="Token invalido o expirado"
         )
     
     username = payload.get("sub")
     if not username:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token inválido"
+            detail="Token invalido"
         )
     
     user = db.query(users.UsuarioAdmin).filter(
@@ -121,13 +121,48 @@ def get_current_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Usuario no encontrado"
         )
-    
-    return user
+
+    # Build permisos list for non-superadmin
+    permisos = []
+    if not user.es_superadmin:
+        permisos_db = db.query(PermisoUsuario).options(
+            joinedload(PermisoUsuario.edificio),
+            joinedload(PermisoUsuario.piso)
+        ).filter(PermisoUsuario.usuario_id == user.id).all()
+        
+        for p in permisos_db:
+            permisos.append({
+                "edificio_id": p.edificio_id,
+                "edificio_nombre": p.edificio.nombre if p.edificio else None,
+                "piso_id": p.piso_id,
+                "piso_nombre": p.piso.nombre if p.piso else None
+            })
+
+    # Return full user data including all section permissions
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "nombre_completo": user.nombre_completo,
+        "es_activo": user.es_activo,
+        "es_admin": user.es_admin,
+        "es_superadmin": user.es_superadmin,
+        "ultimo_login": str(user.ultimo_login) if user.ultimo_login else None,
+        "permisos": permisos,
+        "perm_dashboard": True if user.es_superadmin else (user.perm_dashboard if user.perm_dashboard is not None else True),
+        "perm_inventario": True if user.es_superadmin else (user.perm_inventario if user.perm_inventario is not None else True),
+        "perm_mapa": True if user.es_superadmin else (user.perm_mapa if user.perm_mapa is not None else True),
+        "perm_mapa_editar": True if user.es_superadmin else (user.perm_mapa_editar if user.perm_mapa_editar is not None else True),
+        "perm_edificios": True if user.es_superadmin else (user.perm_edificios if user.perm_edificios is not None else True),
+        "perm_impresiones": True if user.es_superadmin else (user.perm_impresiones if user.perm_impresiones is not None else True),
+        "perm_usuarios": True if user.es_superadmin else (user.perm_usuarios if user.perm_usuarios is not None else False),
+        "perm_notificaciones": True if user.es_superadmin else (user.perm_notificaciones if user.perm_notificaciones is not None else True),
+    }
 
 @router.post("/logout")
 def logout():
     """
     Endpoint de logout
-    En implementación JWT stateless, el logout se maneja en el cliente
+    En implementacion JWT stateless, el logout se maneja en el cliente
     """
     return {"message": "Logout exitoso"}
