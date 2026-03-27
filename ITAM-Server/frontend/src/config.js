@@ -25,5 +25,6 @@ export const API_ENDPOINTS = {
     PRINT_STATS: `${API_BASE_URL}/api/print-stats`,
     PRINTERS: `${API_BASE_URL}/api/printers`,
     HISTORY: `${API_BASE_URL}/api/history`,
-    REMOTE: `${API_BASE_URL}/api/remote`
+    REMOTE: `${API_BASE_URL}/api/remote`,
+    COMMANDS: `${API_BASE_URL}/api/commands`
 };

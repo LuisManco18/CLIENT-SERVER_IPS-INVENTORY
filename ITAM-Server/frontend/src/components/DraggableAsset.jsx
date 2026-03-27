@@ -32,7 +32,7 @@ export default function DraggableAsset({ asset, onStop, onUnassign, disabled = f
     }, [pendingShutdown]);
 
     const API_ASSETS = API_ENDPOINTS.ASSETS;
-    const API_REMOTE = API_ENDPOINTS.REMOTE;
+    const API_COMMANDS = API_ENDPOINTS.COMMANDS;
 
     const handleClick = (e) => {
         e.stopPropagation();
@@ -58,22 +58,25 @@ export default function DraggableAsset({ asset, onStop, onUnassign, disabled = f
     };
 
     const handleShutdown = async () => {
-        if (!window.confirm(`¿Seguro que deseas APAGAR ${asset.hostname}?\n\nEl usuario tendrá 60 segundos para cancelar.`)) {
+        if (!window.confirm(`¿Seguro que deseas APAGAR ${asset.hostname}?\n\nEl comando se ejecutará en el próximo ciclo del agente (máx ~5 min).`)) {
             closeMenu();
             return;
         }
 
         setLoading(true);
         try {
-            const response = await axios.post(`${API_REMOTE}/${asset.id}/shutdown`);
+            const response = await axios.post(
+                `${API_COMMANDS}/${asset.id}/queue`,
+                { tipo: 'SHUTDOWN', delay_segundos: 60 }
+            );
             if (response.data.success) {
-                alert(`✅ ${response.data.message}\n\nEl evento fue registrado en notificaciones.`);
+                alert(`✅ ${response.data.message}`);
                 setPendingShutdown(true);
             } else {
-                alert(`⚠️ ${response.data.message}\n\nEl intento fue registrado en notificaciones como fallido.`);
+                alert(`⚠️ ${response.data.message}`);
             }
         } catch (error) {
-            const msg = error.response?.data?.detail || 'Error al enviar comando';
+            const msg = error.response?.data?.detail || 'Error al encolar comando';
             alert(`Error: ${msg}`);
         } finally {
             setLoading(false);
@@ -82,22 +85,25 @@ export default function DraggableAsset({ asset, onStop, onUnassign, disabled = f
     };
 
     const handleRestart = async () => {
-        if (!window.confirm(`¿Seguro que deseas REINICIAR ${asset.hostname}?\n\nEl usuario tendrá 60 segundos para cancelar.`)) {
+        if (!window.confirm(`¿Seguro que deseas REINICIAR ${asset.hostname}?\n\nEl comando se ejecutará en el próximo ciclo del agente (máx ~5 min).`)) {
             closeMenu();
             return;
         }
 
         setLoading(true);
         try {
-            const response = await axios.post(`${API_REMOTE}/${asset.id}/restart`);
+            const response = await axios.post(
+                `${API_COMMANDS}/${asset.id}/queue`,
+                { tipo: 'RESTART', delay_segundos: 60 }
+            );
             if (response.data.success) {
-                alert(`✅ ${response.data.message}\n\nEl evento fue registrado en notificaciones.`);
+                alert(`✅ ${response.data.message}`);
                 setPendingShutdown(true);
             } else {
-                alert(`⚠️ ${response.data.message}\n\nEl intento fue registrado en notificaciones como fallido.`);
+                alert(`⚠️ ${response.data.message}`);
             }
         } catch (error) {
-            const msg = error.response?.data?.detail || 'Error al enviar comando';
+            const msg = error.response?.data?.detail || 'Error al encolar comando';
             alert(`Error: ${msg}`);
         } finally {
             setLoading(false);
@@ -108,9 +114,12 @@ export default function DraggableAsset({ asset, onStop, onUnassign, disabled = f
     const handleCancelShutdown = async () => {
         setLoading(true);
         try {
-            const response = await axios.post(`${API_REMOTE}/${asset.id}/cancel`);
+            const response = await axios.post(
+                `${API_COMMANDS}/${asset.id}/queue`,
+                { tipo: 'CANCEL', delay_segundos: 0 }
+            );
             if (response.data.success) {
-                alert(`✅ ${response.data.message}`);
+                alert(`✅ Cancelación encolada. Se ejecutará en el próximo ciclo del agente.`);
                 setPendingShutdown(false);
                 setCountdown(0);
             } else {

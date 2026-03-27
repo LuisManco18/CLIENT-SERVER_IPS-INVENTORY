@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from routers import dashboard, floors, buildings, auth, areas, reports, history as history_router, glossary as glossary_router, catalogs, users, remote, printers, audit as audit_router, print_stats as print_stats_router, notifications as notifications_router
+from routers import commands_pull as commands_pull_router
 from middleware import RateLimitMiddleware, AuditMiddleware
 from utils.history import log_asset_change
 from utils.parser import parse_hostname_logic
@@ -18,6 +19,7 @@ from config import settings
 # Importar TODOS los modelos antes de create_all para que SQLAlchemy los detecte
 from models import assets, locations, users as users_model, history, glossary, permisos, printers as printers_model, audit as audit_model, notifications as notifications_model
 from models.print_stats import PrintStatsPC
+from models.commands import ComandoPendiente  # Tabla de comandos pull
 from schemas import asset_schema
 
 # --- CREACIÓN AUTOMÁTICA DE TABLAS ---
@@ -258,5 +260,6 @@ app.include_router(printers.router)
 app.include_router(audit_router.router)
 app.include_router(print_stats_router.router)
 app.include_router(notifications_router.router)
+app.include_router(commands_pull_router.router)  # Comandos Pull (sin necesitar alcanzar al agente)
 
 # Trigger reload for schema update

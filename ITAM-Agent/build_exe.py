@@ -23,6 +23,18 @@ def build():
     print("  ITAM Agent - Build Ejecutable")
     print("=" * 60)
     
+    # Matar proceso ITAMAgent.exe si ya esta corriendo (libera el archivo)
+    try:
+        subprocess.run(["taskkill", "/F", "/IM", "ITAMAgent.exe"], 
+                      capture_output=True, check=False)
+        print("[OK] Proceso ITAMAgent.exe detenido (si estaba corriendo)")
+    except Exception:
+        pass
+    
+    # Small delay to ensure the file handle is released
+    import time
+    time.sleep(2)
+    
     # Verificar que PyInstaller está instalado
     try:
         import PyInstaller

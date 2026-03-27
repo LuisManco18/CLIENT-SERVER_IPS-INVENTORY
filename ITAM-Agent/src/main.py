@@ -99,6 +99,58 @@ class ITAMAgent:
                         logger.info("  ✓ Reporte enviado exitosamente")
                     else:
                         logger.warning("  ✗ No se pudo enviar el reporte")
+
+                    # 2b. Consultar comandos pendientes (arquitectura PULL)
+                    # Funciona incluso si el servidor no puede alcanzar a este agente
+                    try:
+                        cmd = self.network.poll_command(data.get("serial_number", ""))
+                        if cmd.get("tiene_comando"):
+                            tipo = cmd.get("tipo", "")
+                            delay = cmd.get("delay_segundos", 60)
+                            cmd_id = cmd.get("comando_id")
+                            logger.warning(f"Comando recibido: {tipo} (delay: {delay}s)")
+
+                            import subprocess
+                            exito = False
+                            msg = ""
+                            try:
+                                if tipo == "SHUTDOWN":
+                                    subprocess.run(
+                                        f'shutdown /s /t {delay} /c "Apagado remoto via ITAM Server"',
+                                        shell=True, check=True
+                                    )
+                                    msg = f"Apagado programado en {delay} segundos"
+                                    exito = True
+                                    logger.warning(f"APAGADO PROGRAMADO en {delay}s")
+
+                                elif tipo == "RESTART":
+                                    subprocess.run(
+                                        f'shutdown /r /t {delay} /c "Reinicio remoto via ITAM Server"',
+                                        shell=True, check=True
+                                    )
+                                    msg = f"Reinicio programado en {delay} segundos"
+                                    exito = True
+                                    logger.warning(f"REINICIO PROGRAMADO en {delay}s")
+
+                                elif tipo == "CANCEL":
+                                    subprocess.run("shutdown /a", shell=True)
+                                    msg = "Apagado/reinicio cancelado"
+                                    exito = True
+                                    logger.info("Apagado/reinicio CANCELADO")
+
+                                else:
+                                    msg = f"Tipo de comando desconocido: {tipo}"
+                                    logger.error(msg)
+
+                            except subprocess.CalledProcessError as e:
+                                msg = f"Error ejecutando {tipo}: {e}"
+                                logger.error(msg)
+
+                            # Reportar resultado al servidor
+                            if cmd_id:
+                                self.network.report_command_result(cmd_id, exito, msg)
+                    except Exception as e:
+                        logger.debug(f"Error en ciclo de comandos: {e}")
                 else:
                     logger.error("  ✗ No se pudieron recolectar datos del sistema")
                 

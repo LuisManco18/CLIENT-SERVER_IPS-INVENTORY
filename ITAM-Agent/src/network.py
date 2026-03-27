@@ -114,6 +114,36 @@ class NetworkService:
             logger.error(f"✗ No se pudo conectar al servidor: {e}")
             return False
     
+    def poll_command(self, serial_number: str) -> dict:
+        """
+        Consulta al servidor si tiene comandos pendientes para este agente.
+        Arquitectura PULL: el agente llama al servidor, no al revés.
+        Funciona aunque el servidor no pueda alcanzar al agente (redes distintas).
+        
+        Returns:
+            dict con: tiene_comando (bool), comando_id, tipo, delay_segundos
+        """
+        try:
+            url = f"{settings.API_URL}/api/commands/poll/{serial_number}"
+            response = self.session.get(url, timeout=10)
+            if response.status_code == 200:
+                return response.json()
+        except Exception as e:
+            logger.debug(f"Error consultando comandos pendientes: {e}")
+        return {"tiene_comando": False}
+
+    def report_command_result(self, comando_id: int, exito: bool, mensaje: str):
+        """Reporta al servidor el resultado de la ejecución de un comando."""
+        try:
+            url = f"{settings.API_URL}/api/commands/result"
+            self.session.post(url, json={
+                "comando_id": comando_id,
+                "exito": exito,
+                "mensaje": mensaje
+            }, timeout=10)
+        except Exception as e:
+            logger.warning(f"No se pudo reportar resultado del comando: {e}")
+
     def close(self):
         """Cierra la sesión de requests"""
         self.session.close()
